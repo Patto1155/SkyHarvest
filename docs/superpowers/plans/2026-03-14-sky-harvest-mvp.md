@@ -635,11 +635,80 @@ namespace SkyHarvest.Player
 
 - [ ] **Step 4: Run tests — expect PASS**
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Create PlayerInventory MonoBehaviour wrapper**
+
+The `Inventory` class is a POCO. MonoBehaviours like `CropPlot` and `DebrisObject` call `GetComponent<PlayerInventory>()`, so we need a MonoBehaviour wrapper on the player prefab.
+
+```csharp
+// Assets/Scripts/Player/PlayerInventoryComponent.cs
+using UnityEngine;
+
+namespace SkyHarvest.Player
+{
+    public class PlayerInventoryComponent : MonoBehaviour
+    {
+        [SerializeField] private int _slotCount = 20;
+        public Inventory Inventory { get; private set; }
+
+        private void Awake()
+        {
+            Inventory = new Inventory(_slotCount);
+        }
+    }
+}
+```
+
+Update all `player.GetComponent<PlayerInventory>()` calls to use `player.GetComponent<PlayerInventoryComponent>().Inventory` instead, or add a convenience property to `PlayerController`:
+
+```csharp
+// Add to PlayerController.cs
+public Inventory Inventory => GetComponent<PlayerInventoryComponent>().Inventory;
+```
+
+- [ ] **Step 6: Create ItemDatabase for item/crop lookups**
+
+```csharp
+// Assets/Scripts/Data/ItemDatabase.cs
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+
+namespace SkyHarvest.Data
+{
+    public class ItemDatabase : MonoBehaviour
+    {
+        public static ItemDatabase Instance { get; private set; }
+
+        [SerializeField] private ItemData[] _allItems;
+        [SerializeField] private CropData[] _allCrops;
+
+        private Dictionary<string, ItemData> _itemLookup;
+        private Dictionary<string, CropData> _cropBySeed;
+
+        private void Awake()
+        {
+            if (Instance != null) { Destroy(gameObject); return; }
+            Instance = this;
+
+            _itemLookup = _allItems.ToDictionary(i => i.ItemId);
+            _cropBySeed = _allCrops.Where(c => !string.IsNullOrEmpty(c.SeedItemId))
+                                   .ToDictionary(c => c.SeedItemId);
+        }
+
+        public ItemData GetItem(string itemId) =>
+            _itemLookup.TryGetValue(itemId, out var item) ? item : null;
+
+        public CropData GetCropForSeed(string seedItemId) =>
+            _cropBySeed.TryGetValue(seedItemId, out var crop) ? crop : null;
+    }
+}
+```
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add Assets/Scripts/Data/ItemData.cs Assets/Scripts/Player/PlayerInventory.cs Assets/Tests/EditMode/InventoryTests.cs
-git commit -m "feat: add item data and inventory system with stacking and slot management"
+git add Assets/Scripts/Data/ItemData.cs Assets/Scripts/Data/ItemDatabase.cs Assets/Scripts/Player/PlayerInventory.cs Assets/Scripts/Player/PlayerInventoryComponent.cs Assets/Tests/EditMode/InventoryTests.cs
+git commit -m "feat: add item data, inventory system, PlayerInventory component, and ItemDatabase"
 ```
 
 ---
@@ -1538,7 +1607,9 @@ namespace SkyHarvest.Weather
         {
             if (Instance != null) { Destroy(gameObject); return; }
             Instance = this;
-            StateMachine = new WeatherStateMachine(WeatherType.ClearSkies);
+            // Use time-based seed so weather varies per playthrough
+            int weatherSeed = System.Environment.TickCount;
+            StateMachine = new WeatherStateMachine(WeatherType.ClearSkies, weatherSeed);
         }
 
         private void OnEnable()
@@ -1716,7 +1787,7 @@ namespace SkyHarvest.Farming
         public int CurrentStage { get; private set; }
         public float GrowthProgress { get; private set; } // 0 to 1
         public float Health { get; private set; } = 1f;    // 0 to 1
-        public bool IsHarvestable => CurrentStage >= _totalStages - 1 && !IsDead;
+        public bool IsHarvestable => GrowthProgress >= 1f && !IsDead;
         public bool IsDead => Health <= 0f;
 
         private readonly float _growthTimeMinutes;
@@ -1746,8 +1817,7 @@ namespace SkyHarvest.Farming
             float growthRate = waterFactor * sunExposure * soil.GrowthMultiplier();
             _accumulatedGrowth += deltaMinutes * growthRate;
             GrowthProgress = _accumulatedGrowth / _growthTimeMinutes;
-            CurrentStage = (int)(GrowthProgress * _totalStages);
-            if (CurrentStage >= _totalStages) CurrentStage = _totalStages - 1;
+            CurrentStage = System.Math.Min((int)(GrowthProgress * (_totalStages - 1)), _totalStages - 1);
 
             // Wind damage
             if (windDamage > 0f)
@@ -1846,20 +1916,57 @@ namespace SkyHarvest.Farming
 
         public static void TrySow(CropPlot plot, PlayerController player)
         {
-            // Check player has a seed in selected hotbar slot
-            // For MVP: check inventory for any seed item
-            // Plant the crop
-            // This will be data-driven via CropData ScriptableObjects
+            var inv = player.Inventory;
+            if (inv == null) return;
+
+            // Find first seed item in inventory
+            foreach (var slot in inv.Slots)
+            {
+                if (slot.IsEmpty) continue;
+                var cropData = Data.ItemDatabase.Instance.GetCropForSeed(slot.ItemId);
+                if (cropData == null) continue;
+
+                // Consume one seed
+                inv.TryRemove(slot.ItemId, 1);
+
+                // Create crop state from data
+                plot.Crop = new CropState(
+                    cropData.CropId,
+                    cropData.GrowthTimeMinutes,
+                    cropData.GrowthStages,
+                    cropData.WaterConsumptionPerMinute
+                );
+
+                // Register with growth system
+                CropGrowthSystem.Instance.Register(plot);
+                break;
+            }
         }
 
         public static void Harvest(CropPlot plot, PlayerController player)
         {
             if (plot.Crop == null || !plot.Crop.IsHarvestable) return;
 
-            var inv = player.GetComponent<PlayerInventory>();
-            // Add harvest yield to inventory
+            var inv = player.Inventory;
+            if (inv == null) return;
+
+            // Look up crop data for yield
+            var cropData = Data.ItemDatabase.Instance.GetCropForSeed(plot.Crop.CropId + "_seed");
+            int yield = cropData != null
+                ? UnityEngine.Random.Range(cropData.HarvestYieldMin, cropData.HarvestYieldMax + 1)
+                : 1;
+            string yieldItem = cropData?.HarvestYieldItemId ?? plot.Crop.CropId;
+
+            // Add harvest to inventory
+            if (!inv.TryAdd(yieldItem, yield))
+            {
+                // Inventory full — don't destroy the crop
+                return;
+            }
+
             // Record harvest on soil for rotation tracking
             plot.Soil.RecordHarvest(plot.Crop.CropId);
+            CropGrowthSystem.Instance.Unregister(plot);
             plot.Crop = null;
         }
     }
@@ -2020,11 +2127,13 @@ namespace SkyHarvest.Building
         private StructureData _selectedStructure;
         private GameObject _ghostInstance;
         private IslandData _island;
+        private Camera _mainCamera;
 
         private void Awake()
         {
             if (Instance != null) { Destroy(gameObject); return; }
             Instance = this;
+            _mainCamera = Camera.main; // Cache once, not every frame
         }
 
         public void SetIsland(IslandData island) => _island = island;
@@ -2061,7 +2170,10 @@ namespace SkyHarvest.Building
         private void UpdateGhostPosition()
         {
             // Raycast to terrain, snap to grid, validate placement
-            var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            // Use cached camera and new Input System pointer position
+            var pointer = UnityEngine.InputSystem.Pointer.current;
+            if (pointer == null || _mainCamera == null) return;
+            var ray = _mainCamera.ScreenPointToRay(pointer.position.ReadValue());
             if (Physics.Raycast(ray, out var hit, 100f, _terrainMask))
             {
                 Vector2Int gridPos = WorldToGrid(hit.point);
@@ -2186,6 +2298,131 @@ Press B to enter build mode. Select a structure. Move mouse to see ghost snap to
 ```bash
 git add Assets/Scripts/Building/ Assets/Scripts/Data/StructureData.cs Assets/Data/Structures/
 git commit -m "feat: build mode with ghost preview, grid snapping, and structure registry"
+```
+
+---
+
+### Task 15b: Island Expansion & Rain Catcher
+
+**Files:**
+- Create: `Assets/Scripts/Island/IslandExpansion.cs`
+- Create: `Assets/Scripts/Building/RainCatcher.cs`
+
+- [ ] **Step 1: Implement IslandExpansion**
+
+When scaffolding is placed at an edge cell, new `IslandCell` entries are added adjacent to the island boundary.
+
+```csharp
+// Assets/Scripts/Island/IslandExpansion.cs
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace SkyHarvest.Island
+{
+    public static class IslandExpansion
+    {
+        private static readonly Vector2Int[] Neighbors = new[]
+        {
+            new Vector2Int(1, 0), new Vector2Int(-1, 0),
+            new Vector2Int(0, 1), new Vector2Int(0, -1)
+        };
+
+        /// <summary>
+        /// Expands the island by adding new cells adjacent to the given edge position.
+        /// Returns the list of newly created cells for rendering.
+        /// </summary>
+        public static List<IslandCell> Expand(IslandData island, Vector2Int scaffoldPos)
+        {
+            var newCells = new List<IslandCell>();
+
+            foreach (var offset in Neighbors)
+            {
+                var neighborPos = scaffoldPos + offset;
+                if (island.IsValidPosition(neighborPos)) continue; // Already exists
+
+                var newCell = new IslandCell
+                {
+                    GridPos = neighborPos,
+                    Terrain = TerrainType.RockyPlateau, // Scaffolded land starts rocky
+                    Elevation = island.GetCell(scaffoldPos)?.Elevation ?? 0f,
+                    Soil = new SoilState(TerrainType.RockyPlateau),
+                    IsEdge = true
+                };
+
+                island.Cells[neighborPos] = newCell;
+                newCells.Add(newCell);
+            }
+
+            // The scaffolding cell is no longer an edge
+            var scaffoldCell = island.GetCell(scaffoldPos);
+            if (scaffoldCell != null) scaffoldCell.IsEdge = false;
+
+            return newCells;
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Hook expansion into build system**
+
+In `BuildModeController.TryPlace()`, after placing a scaffolding structure, call `IslandExpansion.Expand()` and trigger island re-rendering for the new cells. The scaffolding structure's `StructureData` should have a flag or category (`StructureCategory.Expansion`) to identify it.
+
+- [ ] **Step 3: Implement RainCatcher**
+
+```csharp
+// Assets/Scripts/Building/RainCatcher.cs
+using UnityEngine;
+using SkyHarvest.Core;
+using SkyHarvest.Island;
+using SkyHarvest.Farming;
+
+namespace SkyHarvest.Building
+{
+    public class RainCatcher : Structure
+    {
+        [SerializeField] private float _waterPerRainMinute = 10f;
+        [SerializeField] private float _range = 4f;
+
+        private void OnEnable()
+        {
+            EventBus.Subscribe<GameTickEvent>(OnTick);
+        }
+
+        private void OnDisable()
+        {
+            EventBus.Unsubscribe<GameTickEvent>(OnTick);
+        }
+
+        private void OnTick(GameTickEvent e)
+        {
+            var weather = Weather.WeatherManager.Instance?.CurrentWeather;
+            if (weather != WeatherType.LightRain && weather != WeatherType.HeavyStorm) return;
+
+            float multiplier = weather == WeatherType.HeavyStorm ? 2f : 1f;
+            float waterAmount = _waterPerRainMinute * e.DeltaMinutes * multiplier;
+
+            // Water all soil patches in range
+            var colliders = Physics.OverlapSphere(transform.position, _range);
+            foreach (var col in colliders)
+            {
+                var plot = col.GetComponent<CropPlot>();
+                if (plot?.Soil != null)
+                    plot.Soil.AddWater(waterAmount);
+            }
+        }
+    }
+}
+```
+
+- [ ] **Step 4: Manual verification**
+
+Place scaffolding at island edge — verify new terrain cells appear and island grows. Place rain catcher — verify nearby soil gets watered during rain weather.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add Assets/Scripts/Island/IslandExpansion.cs Assets/Scripts/Building/RainCatcher.cs
+git commit -m "feat: island expansion via scaffolding and functional rain catcher"
 ```
 
 ---
@@ -3088,27 +3325,134 @@ namespace SkyHarvest.SaveLoad
 
         private WorldSaveData BuildSaveData()
         {
-            // Collect state from all managers
-            // This will reference GameManager, WeatherManager,
-            // StructureRegistry, CropGrowthSystem, PlayerController, etc.
-            var data = new WorldSaveData();
-            // Implementation depends on manager references
+            var gm = GameManager.Instance;
+            var wm = Weather.WeatherManager.Instance;
+            var player = FindFirstObjectByType<Player.PlayerController>();
+            var playerInv = player?.GetComponent<Player.PlayerInventoryComponent>();
+
+            var data = new WorldSaveData
+            {
+                GameTimeMinutes = gm.Clock.TotalMinutes,
+                WeatherState = wm.CurrentWeather.ToString(),
+                WeatherTimeRemaining = wm.StateMachine.MinutesRemaining,
+                Island = new IslandSaveData { Seed = gm.CurrentIsland.Seed },
+                Player = new PlayerSaveData()
+            };
+
+            // Save player position and inventory
+            if (player != null)
+            {
+                var pos = player.transform.position;
+                data.Player.PosX = pos.x;
+                data.Player.PosY = pos.y;
+                data.Player.PosZ = pos.z;
+            }
+            if (playerInv != null)
+            {
+                foreach (var slot in playerInv.Inventory.Slots)
+                {
+                    if (!slot.IsEmpty)
+                        data.Player.InventorySlots.Add(new SlotSaveData
+                            { ItemId = slot.ItemId, Count = slot.Count });
+                }
+            }
+
+            // Save modified soil cells
+            foreach (var kvp in gm.CurrentIsland.Cells)
+            {
+                var cell = kvp.Value;
+                data.Island.ModifiedCells.Add(new CellSaveData
+                {
+                    X = cell.GridPos.x, Y = cell.GridPos.y,
+                    SoilQuality = cell.Soil.Quality,
+                    WaterLevel = cell.Soil.WaterLevel,
+                    Nutrients = cell.Soil.Nutrients
+                });
+            }
+
+            // Save structures
+            foreach (var s in Building.StructureRegistry.Instance.AllStructures)
+            {
+                data.Island.Structures.Add(new StructureSaveData
+                {
+                    StructureId = s.Data.StructureId,
+                    GridX = s.GridPosition.x,
+                    GridY = s.GridPosition.y
+                });
+            }
+
+            // Save crops
+            foreach (var plot in FindObjectsByType<Farming.CropPlot>(FindObjectsSortMode.None))
+            {
+                if (plot.Crop == null) continue;
+                data.Island.Crops.Add(new CropSaveData
+                {
+                    CropId = plot.Crop.CropId,
+                    GridX = plot.GridPosition.x,
+                    GridY = plot.GridPosition.y,
+                    GrowthProgress = plot.Crop.GrowthProgress,
+                    Health = plot.Crop.Health
+                });
+            }
+
             return data;
         }
 
         public void ApplySaveData(WorldSaveData data)
         {
-            // Restore state to all managers
-            // Re-generate island from seed, then apply modified cells
-            // Place structures, crops, storage contents
-            // Set player position and inventory
-            // Set weather state and time
+            var gm = GameManager.Instance;
+
+            // Restore game time
+            gm.Clock.SetTime(data.GameTimeMinutes);
+
+            // Restore weather
+            if (System.Enum.TryParse<WeatherType>(data.WeatherState, out var weatherType))
+            {
+                var wm = Weather.WeatherManager.Instance;
+                wm.StateMachine.ForceTransition(weatherType);
+            }
+
+            // Re-generate island from seed, then overlay saved soil state
+            // (Island was already generated in GameManager from the seed)
+            foreach (var cellData in data.Island.ModifiedCells)
+            {
+                var pos = new Vector2Int(cellData.X, cellData.Y);
+                var cell = gm.CurrentIsland.GetCell(pos);
+                if (cell == null) continue;
+                cell.Soil.SetState(cellData.WaterLevel, cellData.Nutrients);
+            }
+
+            // Re-place structures from save data
+            // (lookup StructureData by ID from a StructureDatabase, instantiate prefab)
+
+            // Re-create crops from save data
+            // (create CropState with saved progress using a restoration constructor)
+
+            // Restore player position and inventory
+            var player = FindFirstObjectByType<Player.PlayerController>();
+            if (player != null)
+                player.transform.position = new Vector3(data.Player.PosX, data.Player.PosY, data.Player.PosZ);
+
+            var playerInv = player?.GetComponent<Player.PlayerInventoryComponent>();
+            if (playerInv != null)
+            {
+                foreach (var slot in data.Player.InventorySlots)
+                    playerInv.Inventory.TryAdd(slot.ItemId, slot.Count);
+            }
         }
     }
 }
 ```
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Add helper methods required by save/load**
+
+The following helper methods need to be added to existing classes:
+
+- `GameTimeClock.SetTime(float minutes)` — sets `TotalMinutes` directly (for restoring from save)
+- `SoilState.SetState(float water, float nutrients)` — restores soil state from save
+- `CropState` needs a restoration constructor: `CropState(string cropId, float growthTimeMinutes, int stages, float waterPerMinute, float savedProgress, float savedHealth)` that sets `_accumulatedGrowth` and `Health` from saved values
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add Assets/Scripts/SaveLoad/ Assets/Tests/EditMode/SaveLoadTests.cs
@@ -3316,7 +3660,7 @@ git commit -m "feat: main menu with new game, continue, and seed input"
 | 1 | Unity project setup | 1 |
 | 2 | EventBus | 1 |
 | 3 | Game time clock | 1 |
-| 4 | Item data & inventory | 1 |
+| 4 | Item data, inventory, ItemDatabase | 1 |
 | 5 | Input manager | 1 |
 | 6 | Island terrain data & soil | 2 |
 | 7 | Procedural island generator | 2 |
@@ -3328,10 +3672,11 @@ git commit -m "feat: main menu with new game, continue, and seed input"
 | 13 | Crop data & growth logic | 3 |
 | 14 | Crop growth manager & farming actions | 3 |
 | 15 | Structure data & build mode | 4 |
+| 15b | Island expansion & rain catcher | 4 |
 | 16 | Workshop system (3 workshops) | 4 |
 | 17 | Debris system | 4 |
 | 18 | Storage system | 5 |
 | 19 | Core UI (HUD, inventory, inspector, etc.) | 5 |
-| 20 | Save/load system | 5 |
+| 20 | Save/load system (with full state wiring) | 5 |
 | 21 | Game manager & scene integration | 5 |
 | 22 | Main menu & polish | 5 |
