@@ -1,0 +1,246 @@
+// 2D build mode controller (legacy Input, no prefabs, no Rigidbody).
+// B key toggles; ghost follows mouse grid cell; left-click places.
+// Wired by Bootstrap. SetSelected(StructureDef) called by BuildMenuUI.
+using UnityEngine;
+using SkyHarvest.Core;
+using SkyHarvest.Data;
+using SkyHarvest.Player;
+
+namespace SkyHarvest.Building
+{
+    public class BuildModeController : MonoBehaviour
+    {
+        public static BuildModeController Instance { get; private set; }
+
+        public bool IsActive { get; private set; }
+
+        private StructureDef _selected;
+        private GameObject _ghostGo;
+        private SpriteRenderer _ghostRenderer;
+        private Vector2Int _ghostGridPos;
+        private bool _ghostValid;
+
+        private Island.IslandData _island;
+        private PlayerController _player;
+
+        // Colors for ghost validity
+        private static readonly Color ValidColor   = new Color(0f, 1f, 0.3f, 0.5f);
+        private static readonly Color InvalidColor = new Color(1f, 0.1f, 0.1f, 0.5f);
+
+        private void Awake()
+        {
+            if (Instance != null) { Destroy(gameObject); return; }
+            Instance = this;
+        }
+
+        public void SetIsland(Island.IslandData island) { _island = island; }
+        public void SetPlayer(PlayerController player)   { _player = player; }
+
+        /// <summary>Called by BuildMenuUI when the player picks a structure.</summary>
+        public void SetSelected(StructureDef def)
+        {
+            _selected = def;
+            if (IsActive) RebuildGhost();
+        }
+
+        private void Update()
+        {
+            // Toggle build mode
+            if (Input.GetKeyDown(KeyCode.B))
+            {
+                if (IsActive) ExitBuildMode();
+                else          EnterBuildMode();
+                return;
+            }
+
+            if (!IsActive || _selected == null) return;
+
+            // Escape exits
+            if (Input.GetKeyDown(KeyCode.Escape)) { ExitBuildMode(); return; }
+
+            // Convert mouse position → grid cell
+            UpdateGhostPosition();
+
+            // Left-click to place
+            if (Input.GetMouseButtonDown(0) && _ghostValid)
+                TryPlace(_ghostGridPos);
+        }
+
+        private void EnterBuildMode()
+        {
+            IsActive = true;
+            if (_selected != null) RebuildGhost();
+        }
+
+        private void ExitBuildMode()
+        {
+            IsActive = false;
+            DestroyGhost();
+        }
+
+        private void RebuildGhost()
+        {
+            DestroyGhost();
+            if (_selected == null) return;
+
+            _ghostGo = new GameObject("BuildGhost");
+            _ghostRenderer = _ghostGo.AddComponent<SpriteRenderer>();
+            _ghostRenderer.sortingOrder = 5000;
+
+            // Load structure sprite for ghost (null-safe fallback)
+            var ghostSprite = MakeFallbackSprite(Color.magenta);
+            _ghostRenderer.sprite = ghostSprite;
+            _ghostRenderer.color = ValidColor;
+        }
+
+        private void DestroyGhost()
+        {
+            if (_ghostGo != null) Destroy(_ghostGo);
+            _ghostGo = null;
+            _ghostRenderer = null;
+        }
+
+        private void UpdateGhostPosition()
+        {
+            if (_ghostGo == null || Camera.main == null) return;
+
+            Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            mouseWorld.z = 0f;
+            _ghostGridPos = GridMath.WorldToGrid(new Vector2(mouseWorld.x, mouseWorld.y));
+
+            // Snap ghost to grid cell world position
+            var worldPos = GridMath.GridToWorld(_ghostGridPos);
+            _ghostGo.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+
+            _ghostValid = CanPlaceAt(_ghostGridPos);
+            if (_ghostRenderer != null)
+                _ghostRenderer.color = _ghostValid ? ValidColor : InvalidColor;
+        }
+
+        private bool CanPlaceAt(Vector2Int gridPos)
+        {
+            if (_island == null) return false;
+            var cell = _island.GetCell(gridPos);
+            if (cell == null) return false;
+            if (StructureRegistry.Instance != null && StructureRegistry.Instance.HasStructureAt(gridPos))
+                return false;
+
+            // Terrain placement rule (PlacementRule enum from Defs.cs)
+            if (_selected != null)
+            {
+                switch (_selected.PlacementRule)
+                {
+                    case PlacementRule.EdgeCellOnly:
+                        if (!cell.IsEdge) return false;
+                        break;
+                    case PlacementRule.CliffEdgeOnly:
+                        if (cell.Terrain != Island.TerrainType.CliffEdge) return false;
+                        break;
+                    // PlacementRule.Any: no restriction
+                }
+            }
+
+            // Check player has materials
+            if (_player != null && _selected != null)
+            {
+                var inv = _player.GetComponent<PlayerInventoryComponent>();
+                if (inv != null)
+                {
+                    foreach (var cost in _selected.BuildCosts)
+                    {
+                        if (!inv.Inventory.Has(cost.ItemId, cost.Amount)) return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private void TryPlace(Vector2Int gridPos)
+        {
+            if (_selected == null || !CanPlaceAt(gridPos)) return;
+
+            // Consume materials
+            if (_player != null)
+            {
+                var inv = _player.GetComponent<PlayerInventoryComponent>();
+                if (inv != null)
+                {
+                    foreach (var cost in _selected.BuildCosts)
+                        inv.Inventory.TryRemove(cost.ItemId, cost.Amount);
+                }
+            }
+
+            PlaceStructure(gridPos, _selected);
+        }
+
+        /// <summary>
+        /// Place a structure at gridPos (called by save restore too).
+        /// </summary>
+        public void PlaceStructure(Vector2Int gridPos, StructureDef def)
+        {
+            var go = new GameObject(def.DisplayName);
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = MakeFallbackSprite(Color.magenta); // will be overridden if art loads
+
+            // Position in world space (dimetric)
+            var worldPos = GridMath.GridToWorld(gridPos);
+            go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+
+            // Sorting order
+            sr.sortingOrder = Mathf.RoundToInt(-worldPos.y * Constants.SortingOrderScale);
+
+            // Attach appropriate Structure component based on StructureId
+            Structure structure = AttachStructureComponent(go, def);
+            structure.Initialize(def, gridPos);
+            StructureRegistry.Instance.Register(structure);
+
+            // Scaffolding: trigger island expansion
+            if (def.StructureId == "scaffolding" && _island != null)
+            {
+                var expansion = Island.IslandExpansion.Expand(_island, gridPos);
+
+                // Re-render newly added cells via IslandRenderer (world agent owns this)
+                var islandRenderer = Object.FindObjectOfType<Island.IslandRenderer>();
+                if (islandRenderer != null) islandRenderer.RenderNewCells(expansion);
+
+                EventBus.Publish(new IslandExpandedEvent { NewCellCount = expansion.Count });
+            }
+
+            EventBus.Publish(new StructurePlacedEvent { StructureId = def.StructureId });
+        }
+
+        private Structure AttachStructureComponent(GameObject go, StructureDef def)
+        {
+            return def.StructureId switch
+            {
+                "rain_catcher" => go.AddComponent<RainCatcher>(),
+                "skynet"       => go.AddComponent<Skynet.Skynet>(),
+                "crate"        => go.AddComponent<Storage.StorageContainer>(),
+                "barrel"       => go.AddComponent<Storage.StorageContainer>(),
+                "drying_rack"  => go.AddComponent<Workshop.DryingRack>(),
+                "stone_mill"   => go.AddComponent<Workshop.StoneMill>(),
+                "forge"        => go.AddComponent<Workshop.Forge>(),
+                _              => go.AddComponent<Structure>(),
+            };
+        }
+
+        private static Sprite MakeFallbackSprite(Color c)
+        {
+            var tex = new Texture2D(4, 4);
+            var pixels = new Color[16];
+            for (int i = 0; i < 16; i++) pixels[i] = c;
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0f));
+        }
+
+        public static BuildModeController CreateInstance(Island.IslandRenderer renderer)
+        {
+            var go  = new GameObject("BuildModeController");
+            var bmc = go.AddComponent<BuildModeController>();
+            return bmc;
+        }
+    }
+}
