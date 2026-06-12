@@ -24,6 +24,7 @@ namespace SkyHarvest.SaveLoad
         public List<CropSaveData> Crops = new();
         public List<StorageSaveData> Storages = new();
         public List<SkynetSaveData> Skynets = new();
+        public List<WorkshopSaveData> Workshops = new();
     }
 
     [Serializable]
@@ -62,6 +63,18 @@ namespace SkyHarvest.SaveLoad
         public int GridX, GridY;
         public long LastCollectedUnixTime;
         public List<SlotSaveData> Buffer = new();
+    }
+
+    [Serializable]
+    public class WorkshopSaveData
+    {
+        public int GridX, GridY;
+        public string RecipeId = "";
+        public string OutputItemId = "";
+        public int OutputAmount;
+        public float TotalSeconds;
+        public float ElapsedSeconds;
+        public string State = "Idle";
     }
 
     [Serializable]

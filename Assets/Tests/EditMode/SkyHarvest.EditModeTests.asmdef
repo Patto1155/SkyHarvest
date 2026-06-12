@@ -1,0 +1,15 @@
+{
+    "name": "SkyHarvest.EditModeTests",
+    "references": [
+        "SkyHarvest"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "autoReferenced": true
+}

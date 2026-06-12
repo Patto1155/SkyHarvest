@@ -1,5 +1,6 @@
 // Stone Mill — indoor, reliable. 4-frame sail-turning animation.
 using UnityEngine;
+using SkyHarvest.Data;
 
 namespace SkyHarvest.Workshop
 {

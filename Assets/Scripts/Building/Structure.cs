@@ -36,7 +36,22 @@ namespace SkyHarvest.Building
 
         public virtual void Interact(PlayerController player)
         {
+            if (TryDemolishWithHammer(player)) return;
             // Base: no-op; subclasses override
+        }
+
+        /// <summary>
+        /// When the hammer is equipped, demolish this structure (50% material refund).
+        /// Subclasses that override Interact should call this first.
+        /// </summary>
+        protected bool TryDemolishWithHammer(PlayerController player)
+        {
+            if (player == null) return false;
+            if (!player.TryGetComponent<ToolSystem>(out var tools)) return false;
+            if (tools.EquippedTool != ToolType.Hammer) return false;
+
+            Demolish(player.Inventory);
+            return true;
         }
 
         /// <summary>

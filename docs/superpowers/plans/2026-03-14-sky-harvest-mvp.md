@@ -130,7 +130,7 @@ Assets/
 - Create: `Assets/Scenes/Game.unity`
 - Create: `Assets/Scripts/Core/Constants.cs`
 
-- [ ] **Step 1: Create Unity project**
+- [x] **Step 1: Create Unity project**
 
 Create a new Unity 3D (URP) project. Use Unity 2022 LTS or latest LTS.
 
@@ -138,18 +138,18 @@ Create a new Unity 3D (URP) project. Use Unity 2022 LTS or latest LTS.
 Unity Hub → New Project → 3D (URP) → Name: SkyHarvest
 ```
 
-- [ ] **Step 2: Configure project settings**
+- [x] **Step 2: Configure project settings**
 
 - Set camera to orthographic for isometric view
 - Install packages: Input System, Cinemachine, Test Framework (should be included)
 - Set target platform to PC Standalone
 - Create folder structure as defined above
 
-- [ ] **Step 3: Add Unity .gitignore**
+- [x] **Step 3: Add Unity .gitignore**
 
 Use the standard Unity `.gitignore` from GitHub's gitignore templates.
 
-- [ ] **Step 4: Create Constants.cs**
+- [x] **Step 4: Create Constants.cs**
 
 ```csharp
 // Assets/Scripts/Core/Constants.cs
@@ -203,7 +203,7 @@ git commit -m "feat: initialize Unity project with URP, folder structure, and co
 - Create: `Assets/Scripts/Core/EventBus.cs`
 - Create: `Assets/Tests/EditMode/EventBusTests.cs`
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 ```csharp
 // Assets/Tests/EditMode/EventBusTests.cs
@@ -257,7 +257,7 @@ public class EventBusTests
 Run: Unity Test Runner → EditMode → Run All
 Expected: Compilation error — `EventBus` does not exist.
 
-- [ ] **Step 3: Implement EventBus**
+- [x] **Step 3: Implement EventBus**
 
 ```csharp
 // Assets/Scripts/Core/EventBus.cs
@@ -298,7 +298,7 @@ namespace SkyHarvest.Core
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 - [ ] **Step 5: Commit**
 
@@ -316,7 +316,7 @@ git commit -m "feat: add static EventBus for decoupled system communication"
 - Create: `Assets/Scripts/Core/GameEvents.cs`
 - Create: `Assets/Tests/EditMode/GameTimeTests.cs`
 
-- [ ] **Step 1: Create shared event definitions**
+- [x] **Step 1: Create shared event definitions**
 
 ```csharp
 // Assets/Scripts/Core/GameEvents.cs
@@ -350,7 +350,7 @@ namespace SkyHarvest.Core
 }
 ```
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 ```csharp
 // Assets/Tests/EditMode/GameTimeTests.cs
@@ -403,7 +403,7 @@ public class GameTimeTests
 }
 ```
 
-- [ ] **Step 3: Implement GameTimeClock**
+- [x] **Step 3: Implement GameTimeClock**
 
 ```csharp
 // Assets/Scripts/Core/GameTime.cs
@@ -443,7 +443,7 @@ namespace SkyHarvest.Core
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 - [ ] **Step 5: Commit**
 
@@ -485,7 +485,7 @@ namespace SkyHarvest.Data
 }
 ```
 
-- [ ] **Step 2: Write failing inventory tests**
+- [x] **Step 2: Write failing inventory tests**
 
 ```csharp
 // Assets/Tests/EditMode/InventoryTests.cs
@@ -554,7 +554,7 @@ public class InventoryTests
 }
 ```
 
-- [ ] **Step 3: Implement Inventory**
+- [x] **Step 3: Implement Inventory**
 
 ```csharp
 // Assets/Scripts/Player/PlayerInventory.cs
@@ -633,9 +633,9 @@ namespace SkyHarvest.Player
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
-- [ ] **Step 5: Create PlayerInventory MonoBehaviour wrapper**
+- [x] **Step 5: Create PlayerInventory MonoBehaviour wrapper**
 
 The `Inventory` class is a POCO. MonoBehaviours like `CropPlot` and `DebrisObject` call `GetComponent<PlayerInventory>()`, so we need a MonoBehaviour wrapper on the player prefab.
 
@@ -665,7 +665,7 @@ Update all `player.GetComponent<PlayerInventory>()` calls to use `player.GetComp
 public Inventory Inventory => GetComponent<PlayerInventoryComponent>().Inventory;
 ```
 
-- [ ] **Step 6: Create ItemDatabase for item/crop lookups**
+- [x] **Step 6: Create ItemDatabase for item/crop lookups**
 
 ```csharp
 // Assets/Scripts/Data/ItemDatabase.cs
@@ -800,7 +800,7 @@ git commit -m "feat: add input manager with gameplay and build mode action maps"
 - Create: `Assets/Scripts/Island/SoilPatch.cs`
 - Create: `Assets/Tests/EditMode/SoilTests.cs`
 
-- [ ] **Step 1: Define terrain types**
+- [x] **Step 1: Define terrain types**
 
 ```csharp
 // Assets/Scripts/Island/TerrainType.cs
@@ -854,7 +854,7 @@ namespace SkyHarvest.Island
 }
 ```
 
-- [ ] **Step 2: Write soil tests**
+- [x] **Step 2: Write soil tests**
 
 ```csharp
 // Assets/Tests/EditMode/SoilTests.cs
@@ -922,7 +922,7 @@ public class SoilTests
 }
 ```
 
-- [ ] **Step 3: Implement SoilState**
+- [x] **Step 3: Implement SoilState**
 
 ```csharp
 // Assets/Scripts/Island/SoilPatch.cs
@@ -984,7 +984,7 @@ namespace SkyHarvest.Island
 }
 ```
 
-- [ ] **Step 4: Create IslandData container**
+- [x] **Step 4: Create IslandData container**
 
 ```csharp
 // Assets/Scripts/Island/IslandData.cs
@@ -1017,7 +1017,7 @@ namespace SkyHarvest.Island
 }
 ```
 
-- [ ] **Step 5: Run tests — expect PASS**
+- [x] **Step 5: Run tests — expect PASS**
 
 - [ ] **Step 6: Commit**
 
@@ -1034,7 +1034,7 @@ git commit -m "feat: add terrain types, soil system with nutrient depletion and 
 - Create: `Assets/Scripts/Island/IslandGenerator.cs`
 - Create: placeholder art (flat colored tiles per terrain type)
 
-- [ ] **Step 1: Implement island generation**
+- [x] **Step 1: Implement island generation**
 
 ```csharp
 // Assets/Scripts/Island/IslandGenerator.cs
@@ -1119,7 +1119,7 @@ namespace SkyHarvest.Island
 }
 ```
 
-- [ ] **Step 2: Create basic terrain visualization**
+- [x] **Step 2: Create basic terrain visualization**
 
 Create a MonoBehaviour `IslandRenderer` that instantiates a colored cube/quad per cell, tinted by terrain type. This is placeholder art — just enough to see the island shape.
 
@@ -1146,7 +1146,7 @@ git commit -m "feat: procedural island generation with terrain types and elevati
 - Create: `Assets/Scripts/Player/PlayerController.cs`
 - Create: `Assets/Prefabs/Player/Player.prefab`
 
-- [ ] **Step 1: Implement isometric movement**
+- [x] **Step 1: Implement isometric movement**
 
 ```csharp
 // Assets/Scripts/Player/PlayerController.cs
@@ -1190,7 +1190,7 @@ In Unity:
 - Add PlayerController script
 - Create prefab in `Assets/Prefabs/Player/`
 
-- [ ] **Step 3: Set up isometric camera**
+- [x] **Step 3: Set up isometric camera**
 
 Add a Camera (or use Main Camera) positioned above and angled for isometric view:
 - Rotation: (30, 45, 0) for classic isometric
@@ -1217,7 +1217,7 @@ git commit -m "feat: isometric player movement with Cinemachine camera follow"
 - Create: `Assets/Scripts/Player/InteractionSystem.cs`
 - Create: `Assets/Scripts/Player/IInteractable.cs`
 
-- [ ] **Step 1: Define interactable interface**
+- [x] **Step 1: Define interactable interface**
 
 ```csharp
 // Assets/Scripts/Player/IInteractable.cs
@@ -1231,7 +1231,7 @@ namespace SkyHarvest.Player
 }
 ```
 
-- [ ] **Step 2: Implement interaction detection**
+- [x] **Step 2: Implement interaction detection**
 
 ```csharp
 // Assets/Scripts/Player/InteractionSystem.cs
@@ -1306,7 +1306,7 @@ git commit -m "feat: proximity-based interaction system with IInteractable inter
 **Files:**
 - Create: `Assets/Scripts/Player/ToolSystem.cs`
 
-- [ ] **Step 1: Implement tool system**
+- [x] **Step 1: Implement tool system**
 
 ```csharp
 // Assets/Scripts/Player/ToolSystem.cs
@@ -1400,7 +1400,7 @@ namespace SkyHarvest.Data
 }
 ```
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 ```csharp
 // Assets/Tests/EditMode/WeatherStateMachineTests.cs
@@ -1449,7 +1449,7 @@ public class WeatherStateMachineTests
 }
 ```
 
-- [ ] **Step 3: Implement WeatherStateMachine (pure logic, no MonoBehaviour)**
+- [x] **Step 3: Implement WeatherStateMachine (pure logic, no MonoBehaviour)**
 
 ```csharp
 // Assets/Scripts/Weather/WeatherStateMachine.cs
@@ -1569,7 +1569,7 @@ namespace SkyHarvest.Weather
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 - [ ] **Step 5: Commit**
 
@@ -1587,7 +1587,7 @@ git commit -m "feat: weather state machine with weighted random transitions and 
 - Create: `Assets/Scripts/Weather/WeatherEffects.cs`
 - Create: `Assets/Scripts/Weather/WeatherAmbientCues.cs`
 
-- [ ] **Step 1: Create WeatherManager MonoBehaviour**
+- [x] **Step 1: Create WeatherManager MonoBehaviour**
 
 ```csharp
 // Assets/Scripts/Weather/WeatherManager.cs (MonoBehaviour wrapper)
@@ -1630,7 +1630,7 @@ namespace SkyHarvest.Weather
 }
 ```
 
-- [ ] **Step 2: Create WeatherEffects for particles**
+- [x] **Step 2: Create WeatherEffects for particles**
 
 Create `WeatherEffects.cs` that listens for `WeatherChangedEvent` and toggles particle systems:
 - Rain particle system (light rain = few particles, heavy storm = dense + wind offset)
@@ -1640,7 +1640,7 @@ Create `WeatherEffects.cs` that listens for `WeatherChangedEvent` and toggles pa
 
 Use Unity's built-in particle system. Create child GameObjects under a WeatherEffects parent with pre-configured particle systems.
 
-- [ ] **Step 3: Create WeatherAmbientCues**
+- [x] **Step 3: Create WeatherAmbientCues**
 
 `WeatherAmbientCues.cs` listens for `WeatherChangedEvent` and gradually shifts:
 - Directional light colour and intensity (darker in storms, warm in clear)
@@ -1703,7 +1703,7 @@ namespace SkyHarvest.Data
 }
 ```
 
-- [ ] **Step 2: Write failing crop growth tests**
+- [x] **Step 2: Write failing crop growth tests**
 
 ```csharp
 // Assets/Tests/EditMode/CropGrowthTests.cs
@@ -1772,7 +1772,7 @@ public class CropGrowthTests
 }
 ```
 
-- [ ] **Step 3: Implement CropState (pure logic)**
+- [x] **Step 3: Implement CropState (pure logic)**
 
 ```csharp
 // Assets/Scripts/Farming/CropInstance.cs
@@ -1830,7 +1830,7 @@ namespace SkyHarvest.Farming
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
 - [ ] **Step 5: Commit**
 
@@ -1848,7 +1848,7 @@ git commit -m "feat: crop growth system with water, sun, wind, and soil dependen
 - Create: `Assets/Scripts/Farming/FarmingActions.cs`
 - Create: `Assets/Scripts/Farming/CropPlot.cs` (MonoBehaviour on world crop objects)
 
-- [ ] **Step 1: Create CropPlot component**
+- [x] **Step 1: Create CropPlot component**
 
 ```csharp
 // Assets/Scripts/Farming/CropPlot.cs
@@ -1899,7 +1899,7 @@ namespace SkyHarvest.Farming
 }
 ```
 
-- [ ] **Step 2: Create FarmingActions**
+- [x] **Step 2: Create FarmingActions**
 
 ```csharp
 // Assets/Scripts/Farming/FarmingActions.cs
@@ -1973,7 +1973,7 @@ namespace SkyHarvest.Farming
 }
 ```
 
-- [ ] **Step 3: Create CropGrowthSystem**
+- [x] **Step 3: Create CropGrowthSystem**
 
 ```csharp
 // Assets/Scripts/Farming/CropGrowthSystem.cs
@@ -2106,7 +2106,7 @@ namespace SkyHarvest.Data
 }
 ```
 
-- [ ] **Step 2: Implement BuildModeController**
+- [x] **Step 2: Implement BuildModeController**
 
 ```csharp
 // Assets/Scripts/Building/BuildModeController.cs
@@ -2220,7 +2220,7 @@ namespace SkyHarvest.Building
 }
 ```
 
-- [ ] **Step 3: Implement Structure and StructureRegistry**
+- [x] **Step 3: Implement Structure and StructureRegistry**
 
 ```csharp
 // Assets/Scripts/Building/Structure.cs
@@ -2308,7 +2308,7 @@ git commit -m "feat: build mode with ghost preview, grid snapping, and structure
 - Create: `Assets/Scripts/Island/IslandExpansion.cs`
 - Create: `Assets/Scripts/Building/RainCatcher.cs`
 
-- [ ] **Step 1: Implement IslandExpansion**
+- [x] **Step 1: Implement IslandExpansion**
 
 When scaffolding is placed at an edge cell, new `IslandCell` entries are added adjacent to the island boundary.
 
@@ -2363,11 +2363,11 @@ namespace SkyHarvest.Island
 }
 ```
 
-- [ ] **Step 2: Hook expansion into build system**
+- [x] **Step 2: Hook expansion into build system**
 
 In `BuildModeController.TryPlace()`, after placing a scaffolding structure, call `IslandExpansion.Expand()` and trigger island re-rendering for the new cells. The scaffolding structure's `StructureData` should have a flag or category (`StructureCategory.Expansion`) to identify it.
 
-- [ ] **Step 3: Implement RainCatcher**
+- [x] **Step 3: Implement RainCatcher**
 
 ```csharp
 // Assets/Scripts/Building/RainCatcher.cs
@@ -2464,7 +2464,7 @@ namespace SkyHarvest.Data
 }
 ```
 
-- [ ] **Step 2: Write recipe validation tests**
+- [x] **Step 2: Write recipe validation tests**
 
 ```csharp
 // Assets/Tests/EditMode/RecipeTests.cs
@@ -2503,7 +2503,7 @@ public class RecipeTests
 }
 ```
 
-- [ ] **Step 3: Implement WorkshopLogic (pure logic)**
+- [x] **Step 3: Implement WorkshopLogic (pure logic)**
 
 ```csharp
 // Assets/Scripts/Workshop/WorkshopLogic.cs
@@ -2529,9 +2529,9 @@ namespace SkyHarvest.Workshop
 }
 ```
 
-- [ ] **Step 4: Run tests — expect PASS**
+- [x] **Step 4: Run tests — expect PASS**
 
-- [ ] **Step 5: Implement WorkshopBase MonoBehaviour**
+- [x] **Step 5: Implement WorkshopBase MonoBehaviour**
 
 ```csharp
 // Assets/Scripts/Workshop/WorkshopBase.cs
@@ -2616,7 +2616,7 @@ namespace SkyHarvest.Workshop
 }
 ```
 
-- [ ] **Step 6: Implement DryingRack (weather-sensitive)**
+- [x] **Step 6: Implement DryingRack (weather-sensitive)**
 
 ```csharp
 // Assets/Scripts/Workshop/DryingRack.cs
@@ -2637,7 +2637,7 @@ namespace SkyHarvest.Workshop
 }
 ```
 
-- [ ] **Step 7: Implement StoneMill and Forge**
+- [x] **Step 7: Implement StoneMill and Forge**
 
 ```csharp
 // Assets/Scripts/Workshop/StoneMill.cs
@@ -2745,7 +2745,7 @@ namespace SkyHarvest.Data
 }
 ```
 
-- [ ] **Step 2: Write loot table tests**
+- [x] **Step 2: Write loot table tests**
 
 ```csharp
 // Assets/Tests/EditMode/LootTableTests.cs
@@ -2795,9 +2795,9 @@ public class LootTableTests
 }
 ```
 
-- [ ] **Step 3: Run tests — expect PASS**
+- [x] **Step 3: Run tests — expect PASS**
 
-- [ ] **Step 4: Implement DebrisSpawner and DebrisObject**
+- [x] **Step 4: Implement DebrisSpawner and DebrisObject**
 
 ```csharp
 // Assets/Scripts/Debris/DebrisSpawner.cs
@@ -2945,7 +2945,7 @@ git commit -m "feat: debris spawning with weather-affected frequency and weighte
 - Create: `Assets/Scripts/Storage/StorageContainer.cs`
 - Create: `Assets/Scripts/Storage/StorageProximity.cs`
 
-- [ ] **Step 1: Implement StorageContainer**
+- [x] **Step 1: Implement StorageContainer**
 
 ```csharp
 // Assets/Scripts/Storage/StorageContainer.cs
@@ -2978,7 +2978,7 @@ namespace SkyHarvest.Storage
 }
 ```
 
-- [ ] **Step 2: Implement StorageProximity for workshop auto-pull**
+- [x] **Step 2: Implement StorageProximity for workshop auto-pull**
 
 ```csharp
 // Assets/Scripts/Storage/StorageProximity.cs
@@ -3038,7 +3038,7 @@ git commit -m "feat: storage containers with proximity-based workshop auto-pull"
 - Create: `Assets/Scripts/UI/StorageUI.cs`
 - Create: `Assets/Scripts/UI/BuildMenuUI.cs`
 
-- [ ] **Step 1: Create HUD Canvas**
+- [x] **Step 1: Create HUD Canvas**
 
 In Unity, create a Canvas (Screen Space - Overlay) with:
 - Bottom bar: hotbar slots (6 slots showing items/tools)
@@ -3046,7 +3046,7 @@ In Unity, create a Canvas (Screen Space - Overlay) with:
 - Top-right: time of day display (sun/moon icon + hour text)
 - Bottom-right: minimap toggle button
 
-- [ ] **Step 2: Implement HUDController**
+- [x] **Step 2: Implement HUDController**
 
 ```csharp
 // Assets/Scripts/UI/HUDController.cs
@@ -3082,18 +3082,18 @@ namespace SkyHarvest.UI
 }
 ```
 
-- [ ] **Step 3: Implement InventoryUI**
+- [x] **Step 3: Implement InventoryUI**
 
 Grid layout panel that opens on Tab. Shows player inventory slots. Click to select item for hotbar. Close with Tab or Escape.
 
-- [ ] **Step 4: Implement InspectorPanel**
+- [x] **Step 4: Implement InspectorPanel**
 
 Floating panel that appears when player looks at a crop plot, workshop, or structure. Shows contextual info:
 - Crop: growth stage bar, health bar, water level, soil quality
 - Workshop: current recipe, progress bar, fuel level
 - Structure: name, condition
 
-- [ ] **Step 5: Implement WorkshopUI**
+- [x] **Step 5: Implement WorkshopUI**
 
 Panel that opens when interacting with a workshop. Shows:
 - Available recipes list
@@ -3102,11 +3102,11 @@ Panel that opens when interacting with a workshop. Shows:
 - Progress bar for active recipe
 - "Collect" button when done
 
-- [ ] **Step 6: Implement StorageUI**
+- [x] **Step 6: Implement StorageUI**
 
 Split panel: player inventory on left, storage contents on right. Click items to transfer between them.
 
-- [ ] **Step 7: Implement BuildMenuUI**
+- [x] **Step 7: Implement BuildMenuUI**
 
 Panel showing available structures when in build mode. Filter by category. Shows cost, description. Click to select for placement.
 
@@ -3132,7 +3132,7 @@ git commit -m "feat: core UI — HUD, inventory, inspector, workshop, storage, a
 - Create: `Assets/Scripts/SaveLoad/PlayerSaveData.cs`
 - Create: `Assets/Tests/EditMode/SaveLoadTests.cs`
 
-- [ ] **Step 1: Define serializable save data classes**
+- [x] **Step 1: Define serializable save data classes**
 
 ```csharp
 // Assets/Scripts/SaveLoad/WorldSaveData.cs
@@ -3227,7 +3227,7 @@ namespace SkyHarvest.SaveLoad
 }
 ```
 
-- [ ] **Step 2: Write save/load tests**
+- [x] **Step 2: Write save/load tests**
 
 ```csharp
 // Assets/Tests/EditMode/SaveLoadTests.cs
@@ -3278,9 +3278,9 @@ public class SaveLoadTests
 }
 ```
 
-- [ ] **Step 3: Run tests — expect PASS**
+- [x] **Step 3: Run tests — expect PASS**
 
-- [ ] **Step 4: Implement SaveManager**
+- [x] **Step 4: Implement SaveManager**
 
 ```csharp
 // Assets/Scripts/SaveLoad/SaveManager.cs
@@ -3444,7 +3444,7 @@ namespace SkyHarvest.SaveLoad
 }
 ```
 
-- [ ] **Step 5: Add helper methods required by save/load**
+- [x] **Step 5: Add helper methods required by save/load**
 
 The following helper methods need to be added to existing classes:
 
@@ -3467,7 +3467,7 @@ git commit -m "feat: save/load system with JSON serialization for full game stat
 - Create: `Assets/Scripts/Core/GameManager.cs`
 - Modify: `Assets/Scenes/Game.unity` — wire all systems together
 
-- [ ] **Step 1: Create GameManager**
+- [x] **Step 1: Create GameManager**
 
 ```csharp
 // Assets/Scripts/Core/GameManager.cs
@@ -3596,7 +3596,7 @@ Simple menu with:
 - Seed input field (optional, for sharing islands)
 - Background: slowly rotating sky with clouds
 
-- [ ] **Step 2: Implement scene transitions**
+- [x] **Step 2: Implement scene transitions**
 
 ```csharp
 // Assets/Scripts/UI/MainMenuUI.cs
@@ -3637,7 +3637,7 @@ namespace SkyHarvest.UI
 }
 ```
 
-- [ ] **Step 3: Add pause menu**
+- [x] **Step 3: Add pause menu**
 
 In-game Escape key opens pause overlay with:
 - "Resume"

@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using SkyHarvest.Core;
+using SkyHarvest.Data;
 using SkyHarvest.Player;
 
 namespace SkyHarvest.Skynet
@@ -53,6 +54,26 @@ namespace SkyHarvest.Skynet
                 _accrualTimer = RollAccrualInterval();
                 TryAccrue();
             }
+        }
+
+        /// <summary>Restore buffer contents and collection timestamp from save.</summary>
+        public void RestoreFromSave(long lastCollectedUnixTime,
+            System.Collections.Generic.IEnumerable<(string itemId, int amount)> buffer)
+        {
+            LastCollectedUnixTime = lastCollectedUnixTime;
+            _buffer.Clear();
+
+            if (buffer != null)
+            {
+                foreach (var (itemId, amount) in buffer)
+                {
+                    if (string.IsNullOrEmpty(itemId) || amount <= 0) continue;
+                    if (_buffer.Count >= MaxBufferStacks) break;
+                    _buffer.Add((itemId, amount));
+                }
+            }
+
+            UpdateSprite();
         }
 
         /// <summary>
@@ -107,6 +128,7 @@ namespace SkyHarvest.Skynet
 
         public override void Interact(PlayerController player)
         {
+            if (TryDemolishWithHammer(player)) return;
             if (_buffer.Count == 0) return;
 
             var invComp = player.GetComponent<PlayerInventoryComponent>();

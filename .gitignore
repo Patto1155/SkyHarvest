@@ -20,6 +20,13 @@
 .idea/
 
 # Local verification harness build output
-/tools/clr-harness/bin/
-/tools/clr-harness/obj/
+tools/clr-harness/**/bin/
+tools/clr-harness/**/obj/
+
+# Standalone player builds + agent artifacts
+/Builds/
+/artifacts/
+
+# Agent validation logs (tools/validate.sh)
+unity-compile.log
 __pycache__/

@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.UI;
+using SkyHarvest.Building;
 using SkyHarvest.Core;
+using SkyHarvest.Farming;
 using SkyHarvest.Player;
 
 namespace SkyHarvest.UI
@@ -10,6 +12,7 @@ namespace SkyHarvest.UI
         private Text? _timeText;
         private Text? _weatherText;
         private Text? _interactPromptText;
+        private Image? _toolIcon;
         private GameObject[]? _hotbarSlots;
         private Image[]? _hotbarIcons;
 
@@ -25,7 +28,8 @@ namespace SkyHarvest.UI
             EventBus.Subscribe<HourChangedEvent>(OnHourChanged);
             EventBus.Subscribe<WeatherChangedEvent>(OnWeatherChanged);
             EventBus.Subscribe<InventoryChangedEvent>(_ => RefreshHotbar());
-            EventBus.Subscribe<ToolEquippedEvent>(_ => RefreshHotbar());
+            EventBus.Subscribe<ToolEquippedEvent>(_ => { RefreshHotbar(); RefreshToolIcon(); });
+            RefreshToolIcon();
         }
 
         private void OnDestroy()
@@ -38,6 +42,7 @@ namespace SkyHarvest.UI
         public void SetWeatherText(Text t)  { _weatherText = t; }
         public void SetPromptText(Text t)   { _interactPromptText = t; }
         public void SetHotbarSlots(GameObject[] slots, Image[] icons) { _hotbarSlots = slots; _hotbarIcons = icons; }
+        public void SetToolIcon(Image icon) { _toolIcon = icon; }
 
         private void OnHourChanged(HourChangedEvent e)
         {
@@ -56,8 +61,41 @@ namespace SkyHarvest.UI
             if (_interactPromptText != null && _interactSys != null)
             {
                 var target = _interactSys.CurrentTarget;
-                _interactPromptText.text = target != null ? $"[E] {target.InteractionPrompt}" : "";
+                if (target == null)
+                    _interactPromptText.text = "";
+                else if (IsInspectable(target))
+                    _interactPromptText.text = $"[E] {target.InteractionPrompt}   [Q] Inspect";
+                else
+                    _interactPromptText.text = $"[E] {target.InteractionPrompt}";
             }
+        }
+
+        private static bool IsInspectable(IInteractable target) =>
+            target is CropPlot or Structure;
+
+        private void RefreshToolIcon()
+        {
+            if (_toolIcon == null || _toolSys == null) return;
+            var tool = _toolSys.EquippedTool;
+            if (tool == ToolType.None)
+            {
+                _toolIcon.enabled = false;
+                _toolIcon.sprite  = null;
+                return;
+            }
+
+            string path = tool switch
+            {
+                ToolType.Hoe          => "Sprites/ui/icon_tool_hoe",
+                ToolType.WateringCan  => "Sprites/ui/icon_tool_wateringcan",
+                ToolType.Sickle       => "Sprites/ui/icon_tool_sickle",
+                ToolType.Hammer       => "Sprites/ui/icon_tool_hammer",
+                _                     => ""
+            };
+
+            var spr = string.IsNullOrEmpty(path) ? null : SpriteLoader.Load(path);
+            _toolIcon.sprite  = spr;
+            _toolIcon.enabled = spr != null;
         }
 
         private void RefreshHotbar()
