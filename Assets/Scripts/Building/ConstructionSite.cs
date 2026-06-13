@@ -54,10 +54,13 @@ namespace SkyHarvest.Building
             }
 
             DeliverFrom(player.Inventory);
-            if (Progress.IsComplete) Complete();
         }
 
-        /// <summary>Move every still-needed material the player carries into the site.</summary>
+        /// <summary>
+        /// Move every still-needed material the carrier holds into the site.
+        /// Completes (replaces itself with the real structure) when costs are met,
+        /// so every delivery path behaves the same.
+        /// </summary>
         public void DeliverFrom(Inventory inventory)
         {
             if (inventory == null || Progress == null) return;
@@ -79,9 +82,11 @@ namespace SkyHarvest.Building
                     StructureId = Def?.StructureId ?? "",
                     Complete = Progress.IsComplete
                 });
+
+            if (Progress.IsComplete) Complete();
         }
 
-        /// <summary>Restore delivered amounts from a save file.</summary>
+        /// <summary>Restore delivered amounts from a save file (completes if already met).</summary>
         public void RestoreDelivered(System.Collections.Generic.IEnumerable<(string itemId, int count)> delivered)
         {
             foreach (var (itemId, count) in delivered)

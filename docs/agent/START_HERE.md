@@ -7,19 +7,30 @@ Low-context entry point for continuing SkyHarvest development. Read these 4 file
 3. **NEXT_SESSION.md** — the prioritized task list to execute.
 4. **MAP.md** — terse file/system map so you don't re-explore.
 
+Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliation table (kept current; update it when you close a gap).
+
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
-## Current state (2026-06-13)
+## Current state (2026-06-13, session 2)
 
-- Game is functional: main menu → New Game generates a varied procedural island; player, HUD, hotbar render. All MVP systems exist in code (farming loop, 3 workshops, weather, debris+Skynet, storage, save/load, expansion).
-- **Terrain-gap bug: FIXED** (PR #2). Was sprite import settings (NPOT/mips/compression) corrupting `Sprite.Create` rects. 71 `.meta` files fixed + `SpriteImportPostprocessor` enforces it.
-- **Windows build works**: `BuildScript.BuildWindows` → `Builds/Windows/SkyHarvest.exe` (v1.0.0), launches clean.
-- **Verification harness works**: Play-mode screenshots + admin-dialog auto-dismiss + Haiku review (see WORKFLOW).
-- Open PR: **#2** `fix/terrain-and-build-pipeline`. Push goes to a branch + PR, never direct to `main`.
+- PR #2 (terrain fix + build pipeline) MERGED. Session-2 branch: `feat/session-2026-06-13` (PR #3).
+- **All four NEXT_SESSION tasks from last session are DONE:**
+  - Camera: default ortho 2.5, smooth scroll-wheel zoom [2,6] (`CameraFollow`).
+  - Staged building per spec §2: `ConstructionSite`/`ConstructionProgress` — free ghost placement,
+    E delivers materials, completes into the real structure; hammer cancels w/ full refund;
+    saves persist in-progress sites; `BuildModeController.InstantBuild` = debug instant mode.
+  - `GameDatabase` header fixed (it IS the real database).
+  - **Live verification harness** `Assets/Editor/PlayModeVerify.cs` — drives every feature loop
+    in Play mode, 19/19 PASS → `artifacts/verify/verify_report.md` + screenshots.
+- **Major wiring bugs found via scope ledger and FIXED**: build mode was completely broken
+  (BMC never got island/player on New Game; BuildMenuUI.Open had no caller; Tab never opened
+  inventory; Esc double-fired close+pause). All hotkeys (B/Tab/Esc) now centralized in `Bootstrap.Update`.
+- `tools/check.sh` = 82 NUnit green; `tools/validate.sh` green.
+- ⚠ check.sh gotcha: it runs `dotnet test --no-build` — if you add/change test files, build
+  `tools/clr-harness/Tests/Tests.csproj` once first or counts will be stale.
 
-## Known gaps (tracked in NEXT_SESSION)
+## Direction from Patrick (2026-06-13)
 
-- Camera has no zoom; `orthographicSize = 4f` shows the whole island so the avatar looks tiny.
-- Building is instant (ghost → consume materials → spawn finished), not the spec's staged "deliver materials → construct over time".
-- `GameDatabase.cs` header says "placeholder" but it IS the real populated data — just fix the comment.
-- Controls/features not yet end-to-end verified in a live session.
+Game should look **pretty and feel cozy/peaceful**. Haiku screenshot review verdict: no rendering
+bugs, but tone reads "cold grey industrial compound". Next session = visual warmth pass
+(see NEXT_SESSION.md).

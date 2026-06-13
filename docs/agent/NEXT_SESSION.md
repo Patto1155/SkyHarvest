@@ -1,42 +1,50 @@
 # Next session — task list
 
-Execute in order. Branch off `main` (or continue on `fix/terrain-and-build-pipeline` if PR #2 is still open), validate, push to a branch, open/update a PR. Run `bash tools/check.sh` after every C# change; run the Play-mode screenshot verify (WORKFLOW.md) before claiming visual work done.
+Execute in order. Branch off `main` (merge PR #3 first if still open), validate
+(`bash tools/check.sh` after every C# change — see the `--no-build` gotcha in START_HERE),
+screenshot-verify visual work (WORKFLOW.md), push to a branch + PR.
 
-## 1. Camera zoom — make the avatar visible
+**Session theme: the cozy/pretty pass.** Patrick wants the game to look pretty and feel
+cozy/peaceful. Spec §7 palette: dark earth + warm light accents ("warm island vs cool void").
+Haiku's screenshot review (2026-06-13) said the foundation is clean but reads cold/industrial.
 
-- Problem: `Bootstrap.cs:75` sets `cam.orthographicSize = 4f`, which frames the whole island so the 1-unit avatar is tiny.
-- Do: lower the default (try `2.5f`) AND add scroll-wheel zoom to `CameraFollow.cs` (currently follow-only, no zoom — spec wants zoom in/out, fixed rotation). Clamp e.g. `[2, 6]` via `Input.mouseScrollDelta.y`.
-- Verify: screenshot run; avatar should read clearly. Haiku-review the frames.
+## 1. Warm lighting & palette pass (biggest cozy lever)
 
-## 2. Staged building (deliver materials → construct over time)
+- Warm point-light feel around structures: forge glow, lantern amber on shelter/workshops —
+  cheap 2D approach: additive soft-glow sprites (radial gradient, warm orange, low alpha)
+  parented to structures; subtle alpha pulse for flicker.
+- Background: replace flat near-black camera color with a subtle vertical gradient (moody
+  dusk blue→charcoal) + a distant cloud layer (slow parallax drift) so the island floats in
+  a sky, not a void. (Bootstrap builds the camera; add a background quad/canvas behind island.)
+- Terrain warmth: nudge tile tinting toward warm earth on fertile cells (IslandRenderer
+  applies per-cell sprites — add a slight warm `SpriteRenderer.color` tint variation).
 
-- Current: `BuildModeController.TryPlace` consumes materials and spawns the finished structure in one click.
-- Spec (design §2 "Blueprint ghost system"): place a translucent ghost → deliver materials → construction completes.
-- Do: add a `Constructing` state to `Structure`/`StructureRegistry` — place ghost at 0 materials, accept deliveries (reuse player inventory on interact `E`), swap to finished sprite when costs met. Keep instant-place behind a debug flag if useful for testing.
-- Add EditMode tests for the construction state machine (mirror existing `Assets/Tests/EditMode` style).
+## 2. Avatar & crop readability polish
 
-## 3. Fix the stale `GameDatabase` comment
+- Avatar drop shadow (small dark ellipse sprite under player, ~40% alpha) — grounds the
+  character, Haiku flagged it as "pasted on".
+- Crop growth visibility: stronger per-stage visual difference + gentle sway on mature crops
+  (SpriteAnimator already loops; add slight sine x-skew or scale pulse). Ripe crops should
+  glow warm per spec ("golden crop glow").
+- Check Haiku's claimed faint tile seams at green/grey diagonal boundaries (may be JPEG-y
+  artifact — PR #2 supposedly fixed seams; verify at zoom 2 in a screenshot run).
 
-- `Assets/Scripts/Data/GameDatabase.cs` header still says "PLACEHOLDER … real implementation will replace this file." It IS the real data. Rewrite the header to describe it as the authoritative code-defined database. ~5 min, no logic change.
+## 3. Audio/ambience cozy layer (if time)
 
-## 4. Verify ALL controls / features work in a live game
+- `AudioCueSystem` exists — verify it has actual clips wired; add gentle ambient loop
+  (wind + birds on ClearSkies, rain patter on LightRain) and soft chimes for workshop-done.
+  Spec §5: island communicates via audio. Even 2–3 free CC0 loops would transform feel.
 
-Goal: confirm each binding actually does its thing in Play mode, not just compiles. Extend `PlayModeScreenshots.cs` to simulate inputs (or drive systems directly in a Play-mode test) and screenshot before/after. Check off each:
+## 4. Leftover scope items (small)
 
-| Control | Expected | Where |
-|---|---|---|
-| WASD / arrows | player walks, faces direction, walk anim | `PlayerController.cs` (`GetAxisRaw`) |
-| `1`–`6` | select hotbar/tool slot | `ToolSystem.cs:30`, `PlayerController.cs:133` |
-| `E` | interact with current target (harvest/scavenge/open workshop/collect Skynet) | `InteractionSystem.cs:48` |
-| `Q` | open inspector panel on looked-at plot/structure | `InspectorPanel.cs:73` |
-| `B` | toggle build mode; ghost follows mouse; left-click places if valid+affordable | `BuildModeController.cs:49/65` |
-| `Tab` | OVERLOADED — closes storage, toggles tooltip, (inventory?). **Check for conflict.** | `StorageUI.cs:50`, `ContextualTooltipUI.cs:42`, `InventoryUI` |
-| `Esc` | pause menu; also closes open menus | `Bootstrap.cs:453`, menu UIs |
-| Build menu | Up/Down select, Enter confirm, Esc cancel | `BuildMenuUI.cs:56-60` |
-| Mouse L | place structure in build mode | `BuildModeController.cs:65` |
+- G6 hotbar mismatch (SCOPE_LEDGER): HUD draws 6 slots, only 1–4 wired. Either wire 5–6
+  (seed slots?) or render only 4. Decide + do (15 min).
+- Human playtest checklist (not automatable, 10 min with Patrick): WASD feel, scroll-zoom
+  feel, mouse ghost placement, build-menu arrows, Tab/Esc in every panel combination.
+  PlayModeVerify covers everything else (19/19 green 2026-06-13).
 
-Feature loops to exercise end-to-end (plant→water→grow→harvest; load workshop→process→collect; weather changes affect crops; debris lands→scavenge; Skynet catches; save→reload restores state). Report a pass/fail table; file the failures as the next task list.
+## Done-criteria
 
-## Done-criteria for the session
-
-`tools/validate.sh` green, screenshots show steps 1–2 working, a controls pass/fail table exists, PR updated. Then refresh `docs/agent/START_HERE.md` "Current state" + this file so the *next* session starts clean.
+`tools/validate.sh` green; before/after screenshots (PlayModeScreenshots or PlayModeVerify)
+showing the warmth pass; Haiku re-review says tone moved toward cozy; PR opened; this file +
+START_HERE refreshed for session 4.
