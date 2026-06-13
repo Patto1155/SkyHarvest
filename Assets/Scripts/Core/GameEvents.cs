@@ -52,6 +52,9 @@ namespace SkyHarvest.Core
     // ---- Player ----
     public struct ToolEquippedEvent { public int SlotIndex; }
     public struct InventoryChangedEvent { }
+    /// <summary>Fired when the active hotbar slot changes (number-key select).
+    /// SlotIndex is the unified-bar index (tool slots first, then item slots).</summary>
+    public struct HotbarSelectionChangedEvent { public int SlotIndex; }
 
     // ---- Game flow ----
     public struct GameStartedEvent { public bool LoadedFromSave; }

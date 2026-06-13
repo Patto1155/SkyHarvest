@@ -64,7 +64,6 @@ namespace SkyHarvest.Player
         private void Update()
         {
             HandleMovement();
-            HandleToolInput();
         }
 
         // -----------------------------------------------------------------------
@@ -118,23 +117,6 @@ namespace SkyHarvest.Player
                 _isMoving  = true;
                 _isActing  = false;
                 SetWalkAnimation();
-            }
-        }
-
-        // -----------------------------------------------------------------------
-        // Tool input (1-4 hotbar)
-        // -----------------------------------------------------------------------
-        private void HandleToolInput()
-        {
-            if (!TryGetComponent<ToolSystem>(out var tools)) return;
-
-            for (int i = 0; i < 4; i++)
-            {
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-                {
-                    tools.EquipBySlot(i);
-                    return;
-                }
             }
         }
 

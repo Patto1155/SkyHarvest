@@ -55,32 +55,49 @@ namespace SkyHarvest.Farming
         // -----------------------------------------------------------------------
         // Sow — place a seed from inventory into a tilled empty plot
         // -----------------------------------------------------------------------
-        public static void TrySow(CropPlot plot, PlayerController player)
+
+        /// <summary>
+        /// Sow the first seed in the player's inventory that maps to a known crop.
+        /// Used by the verify harness; in-game, sowing goes through the held-seed
+        /// overload below so the player plants whatever the hotbar has selected.
+        /// </summary>
+        public static bool TrySow(CropPlot plot, PlayerController player)
         {
             var inv = player.GetComponent<PlayerInventoryComponent>()?.Inventory;
-            if (inv == null) return;
+            if (inv == null) return false;
 
-            // Find first seed in inventory that maps to a known crop
             foreach (var slot in inv.Slots)
             {
                 if (slot.IsEmpty) continue;
-
-                CropDef? cropDef = TryGetCropForSeed(slot.ItemId);
-                if (cropDef == null) continue;
-
-                if (!inv.TryRemove(slot.ItemId, 1)) continue;
-
-                plot.Crop = new CropState(
-                    cropDef.CropId,
-                    cropDef.GrowthTimeMinutes,
-                    cropDef.GrowthStages,
-                    cropDef.WaterConsumptionPerMinute);
-
-                CropGrowthSystem.Instance?.Register(plot);
-                EventBus.Publish(new CropPlantedEvent { CropId = cropDef.CropId });
-                plot.RefreshVisuals();
-                return;
+                if (TryGetCropForSeed(slot.ItemId) == null) continue;
+                return TrySow(plot, player, slot.ItemId);
             }
+            return false;
+        }
+
+        /// <summary>Sow a specific seed (the hotbar-selected item) into an empty tilled plot.</summary>
+        public static bool TrySow(CropPlot plot, PlayerController player, string seedItemId)
+        {
+            if (string.IsNullOrEmpty(seedItemId)) return false;
+            if (plot.Crop != null) return false;   // already planted
+
+            var inv = player.GetComponent<PlayerInventoryComponent>()?.Inventory;
+            if (inv == null) return false;
+
+            CropDef? cropDef = TryGetCropForSeed(seedItemId);
+            if (cropDef == null) return false;       // not a sowable seed
+            if (!inv.TryRemove(seedItemId, 1)) return false;
+
+            plot.Crop = new CropState(
+                cropDef.CropId,
+                cropDef.GrowthTimeMinutes,
+                cropDef.GrowthStages,
+                cropDef.WaterConsumptionPerMinute);
+
+            CropGrowthSystem.Instance?.Register(plot);
+            EventBus.Publish(new CropPlantedEvent { CropId = cropDef.CropId });
+            plot.RefreshVisuals();
+            return true;
         }
 
         // -----------------------------------------------------------------------

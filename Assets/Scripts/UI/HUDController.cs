@@ -12,9 +12,16 @@ namespace SkyHarvest.UI
         private Text? _timeText;
         private Text? _weatherText;
         private Text? _interactPromptText;
-        private Image? _toolIcon;
+
+        // Unified hotbar (tools + items share one bar; see Hotbar.cs).
         private GameObject[]? _hotbarSlots;
-        private Image[]? _hotbarIcons;
+        private Image[]?      _hotbarBgs;
+        private Image[]?      _hotbarIcons;
+        private Text[]?       _hotbarCounts;
+        private Hotbar?       _hotbar;
+
+        private static readonly Color SlotNormal   = new Color(0.20f, 0.18f, 0.18f, 0.90f);
+        private static readonly Color SlotSelected = new Color(0.95f, 0.80f, 0.45f, 0.95f);
 
         private PlayerInventoryComponent? _playerInv;
         private ToolSystem? _toolSys;
@@ -28,8 +35,9 @@ namespace SkyHarvest.UI
             EventBus.Subscribe<HourChangedEvent>(OnHourChanged);
             EventBus.Subscribe<WeatherChangedEvent>(OnWeatherChanged);
             EventBus.Subscribe<InventoryChangedEvent>(_ => RefreshHotbar());
-            EventBus.Subscribe<ToolEquippedEvent>(_ => { RefreshHotbar(); RefreshToolIcon(); });
-            RefreshToolIcon();
+            EventBus.Subscribe<ToolEquippedEvent>(_ => RefreshHotbar());
+            EventBus.Subscribe<HotbarSelectionChangedEvent>(_ => RefreshHotbar());
+            RefreshHotbar();
         }
 
         private void OnDestroy()
@@ -41,8 +49,23 @@ namespace SkyHarvest.UI
         public void SetTimeText(Text t)     { _timeText = t; }
         public void SetWeatherText(Text t)  { _weatherText = t; }
         public void SetPromptText(Text t)   { _interactPromptText = t; }
-        public void SetHotbarSlots(GameObject[] slots, Image[] icons) { _hotbarSlots = slots; _hotbarIcons = icons; }
-        public void SetToolIcon(Image icon) { _toolIcon = icon; }
+
+        public void SetHotbar(Hotbar hotbar) { _hotbar = hotbar; RefreshHotbar(); }
+
+        /// <summary>Cache the per-slot UI widgets (bg / icon / count) from the slot GameObjects.</summary>
+        public void SetHotbarSlots(GameObject[] slots)
+        {
+            _hotbarSlots  = slots;
+            _hotbarBgs    = new Image[slots.Length];
+            _hotbarIcons  = new Image[slots.Length];
+            _hotbarCounts = new Text[slots.Length];
+            for (int i = 0; i < slots.Length; i++)
+            {
+                _hotbarBgs[i]    = slots[i].GetComponent<Image>();
+                _hotbarIcons[i]  = slots[i].transform.Find("Icon")?.GetComponent<Image>()!;
+                _hotbarCounts[i] = slots[i].transform.Find("Label")?.GetComponent<Text>()!;
+            }
+        }
 
         private void OnHourChanged(HourChangedEvent e)
         {
@@ -73,48 +96,52 @@ namespace SkyHarvest.UI
         private static bool IsInspectable(IInteractable target) =>
             target is CropPlot or Structure;
 
-        private void RefreshToolIcon()
+        private static string ToolIconPath(ToolType tool) => tool switch
         {
-            if (_toolIcon == null || _toolSys == null) return;
-            var tool = _toolSys.EquippedTool;
-            if (tool == ToolType.None)
-            {
-                _toolIcon.enabled = false;
-                _toolIcon.sprite  = null;
-                return;
-            }
+            ToolType.Hoe         => "Sprites/ui/icon_tool_hoe",
+            ToolType.WateringCan => "Sprites/ui/icon_tool_wateringcan",
+            ToolType.Sickle      => "Sprites/ui/icon_tool_sickle",
+            ToolType.Hammer      => "Sprites/ui/icon_tool_hammer",
+            _                    => ""
+        };
 
-            string path = tool switch
-            {
-                ToolType.Hoe          => "Sprites/ui/icon_tool_hoe",
-                ToolType.WateringCan  => "Sprites/ui/icon_tool_wateringcan",
-                ToolType.Sickle       => "Sprites/ui/icon_tool_sickle",
-                ToolType.Hammer       => "Sprites/ui/icon_tool_hammer",
-                _                     => ""
-            };
-
-            var spr = string.IsNullOrEmpty(path) ? null : SpriteLoader.Load(path);
-            _toolIcon.sprite  = spr;
-            _toolIcon.enabled = spr != null;
-        }
-
+        // Renders the unified bar: leading tool slots, then a window onto the
+        // first inventory stacks, with the selected slot highlighted.
         private void RefreshHotbar()
         {
-            if (_hotbarIcons == null || _playerInv == null) return;
-            var slots = _playerInv.Inventory.Slots;
-            for (int i = 0; i < _hotbarIcons.Length && i < slots.Length; i++)
+            if (_hotbarIcons == null || _hotbarBgs == null || _hotbarCounts == null) return;
+            var model = _hotbar?.Model;
+
+            for (int i = 0; i < _hotbarIcons.Length; i++)
             {
-                if (slots[i].IsEmpty)
+                bool selected = model != null && i == model.SelectedIndex;
+                if (_hotbarBgs[i] != null)
+                    _hotbarBgs[i].color = selected ? SlotSelected : SlotNormal;
+
+                string iconPath;
+                string countText;
+
+                if (model != null && model.IsToolSlot(i))
                 {
-                    _hotbarIcons[i].sprite = null;
-                    _hotbarIcons[i].enabled = false;
+                    iconPath  = ToolIconPath(model.ToolAt(i));
+                    countText = "";
                 }
                 else
                 {
-                    var spr = SpriteLoader.Load($"Sprites/items/icon_{slots[i].ItemId}");
-                    _hotbarIcons[i].sprite  = spr;
-                    _hotbarIcons[i].enabled = true;
+                    string? itemId = model?.ItemIdAt(i);
+                    iconPath = string.IsNullOrEmpty(itemId) ? "" : $"Sprites/items/icon_{itemId}";
+                    int count = model?.CountAt(i) ?? 0;
+                    countText = count > 1 ? count.ToString() : "";
                 }
+
+                if (_hotbarIcons[i] != null)
+                {
+                    var spr = string.IsNullOrEmpty(iconPath) ? null : SpriteLoader.Load(iconPath);
+                    _hotbarIcons[i].sprite  = spr;
+                    _hotbarIcons[i].enabled = spr != null;
+                }
+                if (_hotbarCounts[i] != null)
+                    _hotbarCounts[i].text = countText;
             }
         }
     }

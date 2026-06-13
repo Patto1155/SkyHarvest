@@ -1,6 +1,7 @@
 // Assets/Scripts/Player/ToolSystem.cs
 // Owned by: world/island agent
-// Keys 1-4 equip Hoe, WateringCan, Sickle, Hammer.
+// Holds the currently equipped tool (Hoe/WateringCan/Sickle/Hammer).
+// Selection is driven by the unified Hotbar (number keys) — see Hotbar.cs.
 // Publishes ToolEquippedEvent on every equip change.
 using UnityEngine;
 using SkyHarvest.Core;
@@ -20,20 +21,6 @@ namespace SkyHarvest.Player
         };
 
         public ToolType EquippedTool { get; private set; } = ToolType.None;
-
-        private void Update()
-        {
-            // 1-4 hotbar — PlayerController also calls EquipBySlot, but
-            // we keep fallback input here in case PlayerController is absent.
-            for (int i = 0; i < Slots.Length; i++)
-            {
-                if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-                {
-                    EquipBySlot(i);
-                    return;
-                }
-            }
-        }
 
         public void EquipTool(ToolType tool)
         {
