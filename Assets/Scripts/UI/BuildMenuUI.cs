@@ -50,7 +50,7 @@ namespace SkyHarvest.UI
         private void Update()
         {
             if (!IsOpen) return;
-            if (Input.GetKeyDown(KeyCode.Escape)) { Close(); return; }
+            // Esc handling lives in Bootstrap.Update (centralized hotkeys).
 
             bool dirty = false;
             if (Input.GetKeyDown(KeyCode.UpArrow))   { _selectedIndex = (_selectedIndex - 1 + _defs.Count) % _defs.Count; dirty = true; }

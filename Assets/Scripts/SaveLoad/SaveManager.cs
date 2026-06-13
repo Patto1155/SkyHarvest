@@ -79,11 +79,18 @@ namespace SkyHarvest.SaveLoad
             {
                 foreach (var s in StructureRegistry.Instance.AllStructures)
                 {
-                    data.Island.Structures.Add(new StructureSaveData
+                    var structSd = new StructureSaveData
                     {
                         StructureId = s.Def?.StructureId ?? "",
                         GridX = s.GridPosition.x, GridY = s.GridPosition.y
-                    });
+                    };
+                    if (s is ConstructionSite site)
+                    {
+                        structSd.Constructing = true;
+                        foreach (var (itemId, count) in site.Progress.DeliveredItems())
+                            structSd.Delivered.Add(new SlotSaveData { ItemId = itemId, Count = count });
+                    }
+                    data.Island.Structures.Add(structSd);
 
                     if (s is Storage.StorageContainer sc)
                     {

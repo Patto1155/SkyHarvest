@@ -1,6 +1,9 @@
 // 2D build mode controller (legacy Input, no prefabs, no Rigidbody).
-// B key toggles; ghost follows mouse grid cell; left-click places.
-// Wired by Bootstrap. SetSelected(StructureDef) called by BuildMenuUI.
+// Bootstrap owns the B/Esc hotkeys and calls Enter/ExitBuildMode; while active
+// the ghost follows the mouse grid cell and left-click places.
+// Staged building (spec §2): placing creates a ConstructionSite at 0 materials;
+// deliver via E to complete. Set InstantBuild=true (debug/tests) for the old
+// consume-and-spawn behaviour. SetSelected(StructureDef) called by BuildMenuUI.
 using UnityEngine;
 using SkyHarvest.Core;
 using SkyHarvest.Data;
@@ -13,6 +16,9 @@ namespace SkyHarvest.Building
         public static BuildModeController Instance { get; private set; }
 
         public bool IsActive { get; private set; }
+
+        /// <summary>Debug/testing escape hatch: consume materials and spawn finished instantly.</summary>
+        public static bool InstantBuild = false;
 
         private StructureDef _selected;
         private GameObject _ghostGo;
@@ -45,18 +51,7 @@ namespace SkyHarvest.Building
 
         private void Update()
         {
-            // Toggle build mode
-            if (Input.GetKeyDown(KeyCode.B))
-            {
-                if (IsActive) ExitBuildMode();
-                else          EnterBuildMode();
-                return;
-            }
-
             if (!IsActive || _selected == null) return;
-
-            // Escape exits
-            if (Input.GetKeyDown(KeyCode.Escape)) { ExitBuildMode(); return; }
 
             // Convert mouse position → grid cell
             UpdateGhostPosition();
@@ -66,13 +61,13 @@ namespace SkyHarvest.Building
                 TryPlace(_ghostGridPos);
         }
 
-        private void EnterBuildMode()
+        public void EnterBuildMode()
         {
             IsActive = true;
             if (_selected != null) RebuildGhost();
         }
 
-        private void ExitBuildMode()
+        public void ExitBuildMode()
         {
             IsActive = false;
             DestroyGhost();
@@ -87,9 +82,7 @@ namespace SkyHarvest.Building
             _ghostRenderer = _ghostGo.AddComponent<SpriteRenderer>();
             _ghostRenderer.sortingOrder = 5000;
 
-            // Load structure sprite for ghost (null-safe fallback)
-            var ghostSprite = MakeFallbackSprite(Color.magenta);
-            _ghostRenderer.sprite = ghostSprite;
+            _ghostRenderer.sprite = LoadStructureSprite(_selected) ?? MakeFallbackSprite(Color.magenta);
             _ghostRenderer.color = ValidColor;
         }
 
@@ -140,8 +133,9 @@ namespace SkyHarvest.Building
                 }
             }
 
-            // Check player has materials
-            if (_player != null && _selected != null)
+            // Staged building: ghosts are free to place (plan layouts first, spec §2);
+            // materials are checked upfront only in InstantBuild mode.
+            if (InstantBuild && _player != null && _selected != null)
             {
                 var inv = _player.GetComponent<PlayerInventoryComponent>();
                 if (inv != null)
@@ -160,18 +154,44 @@ namespace SkyHarvest.Building
         {
             if (_selected == null || !CanPlaceAt(gridPos)) return;
 
-            // Consume materials
-            if (_player != null)
+            if (InstantBuild)
             {
-                var inv = _player.GetComponent<PlayerInventoryComponent>();
-                if (inv != null)
+                if (_player != null)
                 {
-                    foreach (var cost in _selected.BuildCosts)
-                        inv.Inventory.TryRemove(cost.ItemId, cost.Amount);
+                    var inv = _player.GetComponent<PlayerInventoryComponent>();
+                    if (inv != null)
+                    {
+                        foreach (var cost in _selected.BuildCosts)
+                            inv.Inventory.TryRemove(cost.ItemId, cost.Amount);
+                    }
                 }
+                PlaceStructure(gridPos, _selected);
+                return;
             }
 
-            PlaceStructure(gridPos, _selected);
+            PlaceConstructionSite(gridPos, _selected);
+        }
+
+        /// <summary>
+        /// Place an unbuilt construction site at gridPos (also used by save restore).
+        /// </summary>
+        public ConstructionSite PlaceConstructionSite(Vector2Int gridPos, StructureDef def)
+        {
+            var go = new GameObject($"{def.DisplayName} (site)");
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = LoadStructureSprite(def) ?? MakeFallbackSprite(Color.magenta);
+
+            var worldPos = GridMath.GridToWorld(gridPos);
+            go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+            sr.sortingOrder = Mathf.RoundToInt(-worldPos.y * Constants.SortingOrderScale);
+
+            var site = go.AddComponent<ConstructionSite>();
+            site.Initialize(def, gridPos);
+            StructureRegistry.Instance.Register(site);
+
+            EventBus.Publish(new ConstructionSitePlacedEvent { StructureId = def.StructureId });
+            return site;
         }
 
         /// <summary>
@@ -224,6 +244,13 @@ namespace SkyHarvest.Building
                 "forge"        => go.AddComponent<Workshop.Forge>(),
                 _              => go.AddComponent<Structure>(),
             };
+        }
+
+        private static Sprite LoadStructureSprite(StructureDef def)
+        {
+            if (def == null) return null;
+            try   { return SpriteLoader.Load($"Sprites/structures/{def.StructureId}"); }
+            catch { return null; }
         }
 
         private static Sprite MakeFallbackSprite(Color c)

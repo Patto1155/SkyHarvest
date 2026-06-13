@@ -1,10 +1,10 @@
 // Assets/Scripts/Data/GameDatabase.cs
-// PLACEHOLDER — Data/UI agent owns the real implementation.
-// This stub exists ONLY so the Farming/Building/etc. namespaces compile
-// before the Data agent delivers the full version.
-// The real GameDatabase will replace this file entirely.
+// The authoritative, code-defined game database (items, crops, recipes,
+// structures, loot tables). This project deliberately uses static C# data
+// instead of ScriptableObjects — see docs/IMPLEMENTATION_NOTES.md.
+// IDs and balance values follow CONVENTIONS §Game data IDs.
 //
-// API contract (world-agent uses these; Data agent must preserve signatures):
+// Public API (consumers across all systems rely on these signatures):
 //   GameDatabase.GetItem(string id)           -> ItemDef?
 //   GameDatabase.GetCropForSeed(string seedId) -> CropDef?
 //   GameDatabase.GetCrop(string cropId)        -> CropDef?
@@ -18,7 +18,7 @@ namespace SkyHarvest.Data
 {
     public static class GameDatabase
     {
-        // ---- stub backing data built from CONVENTIONS §Game data IDs ----
+        // ---- backing data built from CONVENTIONS §Game data IDs ----
         private static readonly Dictionary<string, ItemDef> _items = BuildItems();
         private static readonly Dictionary<string, CropDef> _crops = BuildCrops();
         private static readonly Dictionary<string, CropDef> _cropBySeed = BuildCropBySeed();

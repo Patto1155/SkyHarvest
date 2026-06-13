@@ -45,11 +45,7 @@ namespace SkyHarvest.UI
             _panel?.SetActive(false);
         }
 
-        private void Update()
-        {
-            if (IsOpen && Input.GetKeyDown(KeyCode.Tab)) Close();
-            if (IsOpen && Input.GetKeyDown(KeyCode.Escape)) Close();
-        }
+        // Tab/Esc close handling lives in Bootstrap.Update (centralized hotkeys).
 
         private void Refresh()
         {
