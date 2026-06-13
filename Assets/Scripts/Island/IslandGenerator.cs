@@ -70,15 +70,19 @@ namespace SkyHarvest.Island
                         (x + offsetX + 500f) * elevationScale,
                         (y + offsetY + 500f) * elevationScale) * 3f;
 
-                    // Terrain assignment
+                    // Terrain assignment.
+                    // Cozy starter island: a predominantly FERTILE (warm earth) interior ringed
+                    // by a CliffEdge rim, with a small ROCKY shoulder for building and the odd
+                    // wind corridor. Thresholds tuned so fertile soil — not cold grey rock —
+                    // dominates the small starting footprint (matches the concept-art island).
                     TerrainType terrain;
                     if (hasSpring && Vector2Int.Distance(pos, springPos) < 2)
                         terrain = TerrainType.NaturalSpring;
                     else if (isEdge)
                         terrain = TerrainType.CliffEdge;
-                    else if (elevation > 2.0f && noise > 0.55f)
+                    else if (elevation > 2.5f && noise > 0.6f)
                         terrain = TerrainType.WindCorridor;
-                    else if (elevation > 1.5f)
+                    else if (elevation > 2.2f)
                         terrain = TerrainType.RockyPlateau;
                     else
                         terrain = TerrainType.FertileValley;

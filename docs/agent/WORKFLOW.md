@@ -45,6 +45,28 @@ GUI editor required (screenshots need a GPU context). Two concurrent steps:
 
 `PlayModeScreenshots.cs` disables domain reload (or entering Play wipes the capture loop) and auto-clicks "New Game". Edit `CaptureFrames` / add input simulation there to test specific interactions.
 
+## Fast cozy/visual iteration loop (NEW — use this for any look work)
+
+Two tools make visual tuning fast and token-cheap:
+
+1. **`Assets/StreamingAssets/visual.json`** — every warmth knob (sky colours, island
+   radius, forge/lantern glow, golden-crop glow, warm earth tint, avatar shadow) is
+   DATA, loaded by `VisualConfig` (`Assets/Scripts/Core/VisualConfig.cs`). Colours are
+   `#RRGGBB`. **Editing this file needs NO C# recompile** — that's the whole point.
+2. **`bash tools/shot.sh`** — launches the GUI editor, runs `PlayModeContactSheet.Run`
+   (wide establishing + cozy detail framings stitched into ONE png), auto-dismisses the
+   admin modal, and prints ONLY `PASS: <path>` or `FAIL`. The harness instant-builds a
+   forge + a few ripe crops so the glow/golden-crop work is visible (a fresh New Game has
+   neither). Output: `artifacts/screenshots/contact_sheet.png` — Read that one image.
+
+Loop: edit `visual.json` → `bash tools/shot.sh` → Read the contact sheet → adjust. Run
+it with a generous tool timeout (~8 min); it's a cold Unity boot each time.
+
+⚠ **Two-pass gotcha for NEW `.cs` files:** the first Unity run after ADDING a script
+(batchmode OR `shot.sh`) imports it but compiles too late → `CS0103 'X' does not exist`.
+Just run the SAME command again; the second run compiles clean. Editing an EXISTING file
+is single-pass. (Same root cause as the `validate.sh` first-run import.)
+
 ## Delegate screenshot review to Haiku (token-efficient)
 
 Spawn an Agent with `model: haiku`, point it at the `artifacts/screenshots/*.png`, give it the design intent (dark industrial-survival, distinct terrain types, seamless tiles) and ask for a ranked defect list. Don't burn main-model tokens eyeballing images.

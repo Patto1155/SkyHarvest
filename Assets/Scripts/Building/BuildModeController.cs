@@ -216,6 +216,9 @@ namespace SkyHarvest.Building
             structure.Initialize(def, gridPos);
             StructureRegistry.Instance.Register(structure);
 
+            // Light-emitting structures get a warm glow pool (forge fire, shelter lantern).
+            StructureGlow.Attach(go, sr.sortingOrder, StructureGlow.Intensity(def.StructureId));
+
             // Scaffolding: trigger island expansion
             if (def.StructureId == "scaffolding" && _island != null)
             {

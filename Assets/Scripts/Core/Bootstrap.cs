@@ -73,12 +73,16 @@ namespace SkyHarvest.Core
             var cam = camGO.AddComponent<Camera>();
             cam.orthographic = true;
             cam.orthographicSize = 2.5f;   // close enough to read the avatar; scroll-wheel zoom [2,6] in CameraFollow
-            cam.backgroundColor = new Color(0.11f, 0.1f, 0.11f, 1f);
+            // Background = deep sky charcoal from visual.json (a gradient sky quad is layered on top in BuildIslandLayer).
+            cam.backgroundColor = VisualConfig.Current.SkyBottom;
             // CONVENTIONS: orthographic 2D sprites; dimetric layout is in GridMath + art, not camera tilt.
             cam.transform.position = new Vector3(0f, 0f, -10f);
             cam.transform.rotation = Quaternion.identity;
             camGO.AddComponent<AudioListener>();
             camGO.AddComponent<CameraFollow>();
+
+            // Dusk gradient sky + drifting clouds so the island floats in a sky, not a void.
+            SkyBackground.Attach(cam, VisualConfig.Current);
         }
 
         private void BuildIslandLayer()
@@ -260,7 +264,9 @@ namespace SkyHarvest.Core
         private void StartNewGame()
         {
             int seed = PlayerPrefs.HasKey("IslandSeed") ? PlayerPrefs.GetInt("IslandSeed") : Random.Range(0, 999999);
-            var island = IslandGenerator.Generate(seed, Constants.DefaultIslandRadius);
+            // Starting island size comes from visual.json (cozy compact ~4×3 core). Falls back to the constant.
+            int radius = Mathf.Max(2, VisualConfig.Current.islandRadius);
+            var island = IslandGenerator.Generate(seed, radius);
             _gm?.SetIsland(island);
             _islandRenderer?.Render(island);
 
@@ -411,6 +417,15 @@ namespace SkyHarvest.Core
             sr.sortingOrder = 0;
             var spr = SpriteLoader.Load("Sprites/player/player_idle_s");
             sr.sprite = spr;
+
+            // Soft drop shadow grounds the avatar (Haiku flagged it as "pasted on").
+            var shadowGo = new GameObject("Shadow");
+            shadowGo.transform.SetParent(go.transform, false);
+            shadowGo.transform.localPosition = new Vector3(0f, -0.05f, 0f);
+            shadowGo.transform.localScale = new Vector3(0.55f, 0.22f, 1f);
+            var shSr = shadowGo.AddComponent<SpriteRenderer>();
+            shSr.sprite = ProcGfx.SoftDisc(new Color(0f, 0f, 0f, VisualConfig.Current.avatarShadowAlpha), 64, 2.0f);
+            shSr.sortingOrder = -1;   // just under the avatar
 
             var anim = go.AddComponent<SpriteAnimator>();
             anim.Frames = SpriteLoader.LoadStrip("Sprites/player/player_idle_s", 48);
