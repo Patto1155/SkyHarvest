@@ -5,6 +5,7 @@
 // Uses DebrisLootTable / StormDebrisLootTable from GameDatabase.
 using UnityEngine;
 using SkyHarvest.Core;
+using SkyHarvest.Data;
 using SkyHarvest.Player;
 
 namespace SkyHarvest.Debris

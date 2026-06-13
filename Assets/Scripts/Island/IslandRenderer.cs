@@ -155,7 +155,8 @@ namespace SkyHarvest.Island
         {
             try
             {
-                return SpriteLoader.LoadStrip(path, frameW);
+                // Crop to the 64×32 diamond face; full 80px frames overlap on the dimetric grid.
+                return SpriteLoader.LoadTerrainStrip(path, frameW);
             }
             catch { return null; }
         }
@@ -175,7 +176,7 @@ namespace SkyHarvest.Island
             var tex = new Texture2D(1, 1);
             tex.SetPixel(0, 0, Color.magenta);
             tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0f));
+            return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0f), Constants.PixelsPerUnit);
         }
 
         /// <summary>Stable per-cell hash to pick a tile variant deterministically.</summary>

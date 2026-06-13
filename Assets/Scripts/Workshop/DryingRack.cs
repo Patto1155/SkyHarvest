@@ -3,6 +3,7 @@
 // Checks per CONVENTIONS: overrides CanContinue() to return false in rain/storm.
 using UnityEngine;
 using SkyHarvest.Core;
+using SkyHarvest.Data;
 
 namespace SkyHarvest.Workshop
 {

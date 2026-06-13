@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using SkyHarvest.Player;
 using SkyHarvest.Island;
@@ -19,6 +20,8 @@ namespace SkyHarvest.Core
         private IslandRenderer? _islandRenderer;
         private PlayerController? _player;
         private HUDController? _hud;
+        private InspectorPanel? _inspector;
+        private ContextualTooltipUI? _tooltips;
         private InventoryUI? _inventoryUI;
         private WorkshopUI? _workshopUI;
         private StorageUI? _storageUI;
@@ -33,6 +36,7 @@ namespace SkyHarvest.Core
             Application.targetFrameRate = 60;
             Screen.SetResolution(1280, 720, false);
 
+            EnsureEventSystem();
             BuildManagers();
             BuildCamera();
             BuildIslandLayer();
@@ -70,8 +74,9 @@ namespace SkyHarvest.Core
             cam.orthographic = true;
             cam.orthographicSize = 4f;
             cam.backgroundColor = new Color(0.11f, 0.1f, 0.11f, 1f);
-            cam.transform.position = new Vector3(0f, 4f, -10f);
-            cam.transform.rotation = Quaternion.Euler(30f, 0f, 0f);
+            // CONVENTIONS: orthographic 2D sprites; dimetric layout is in GridMath + art, not camera tilt.
+            cam.transform.position = new Vector3(0f, 0f, -10f);
+            cam.transform.rotation = Quaternion.identity;
             camGO.AddComponent<AudioListener>();
             camGO.AddComponent<CameraFollow>();
         }
@@ -108,12 +113,48 @@ namespace SkyHarvest.Core
                 hotbarIcons[i] = slotGO.GetComponentInChildren<Image>();
             }
 
+            // ---- Equipped tool icon (top-left) ----
+            var toolSlotGO = MakeSlot("EquippedTool", canvasGO.transform, new Vector2(-540f, 300f));
+            var toolIcon   = toolSlotGO.transform.Find("Icon")!.GetComponent<Image>();
+
             // ---- Time + weather texts ----
             var timeText    = MakeText("TimeText",    canvasGO.transform, new Vector2(-500f, 320f), "00:00", 16);
             var weatherText = MakeText("WeatherText", canvasGO.transform, new Vector2(400f,  320f), "",     14);
             var promptText  = MakeText("PromptText",  canvasGO.transform, new Vector2(0f,   -230f), "",     15);
 
             _hud = canvasGO.AddComponent<HUDController>();
+            _hud.SetTimeText(timeText);
+            _hud.SetWeatherText(weatherText);
+            _hud.SetPromptText(promptText);
+            _hud.SetHotbarSlots(hotbarSlots, hotbarIcons);
+            _hud.SetToolIcon(toolIcon);
+
+            // ---- Contextual tooltip banner (top centre) ----
+            var tipBanner = MakePanel("TooltipBanner", canvasGO.transform, new Vector2(0f, 260f), new Vector2(520f, 56f));
+            tipBanner.SetActive(false);
+            var tipText = MakeText("TooltipText", tipBanner.transform, Vector2.zero, "", 13);
+            _tooltips = canvasGO.AddComponent<ContextualTooltipUI>();
+            _tooltips.Initialize(tipBanner, tipText);
+
+            // ---- Inspector panel (on-demand, Q key) ----
+            var inspPanel = MakePanel("InspectorPanel", canvasGO.transform, new Vector2(380f, 120f), new Vector2(280f, 220f));
+            inspPanel.SetActive(false);
+            var inspTitle   = MakeText("InspTitle",   inspPanel.transform, new Vector2(0f,  85f), "", 16);
+            var inspBody    = MakeText("InspBody",    inspPanel.transform, new Vector2(0f,  20f), "", 12);
+            inspBody.alignment = TextAnchor.UpperLeft;
+            var inspBarALbl = MakeText("InspBarA",    inspPanel.transform, new Vector2(0f, -40f), "", 11);
+            var inspBarA    = MakeSlider("InspBarAFill", inspPanel.transform, new Vector2(0f, -58f));
+            var inspBarBLbl = MakeText("InspBarB",    inspPanel.transform, new Vector2(0f, -78f), "", 11);
+            var inspBarB    = MakeSlider("InspBarBFill", inspPanel.transform, new Vector2(0f, -96f));
+            _inspector = canvasGO.AddComponent<InspectorPanel>();
+            _inspector.SetWidgets(inspTitle, inspBody, inspBarA, inspBarB, inspBarALbl, inspBarBLbl);
+
+            // ---- Minimap toggle (bottom-right) ----
+            var minimapPanel = MakePanel("MinimapPanel", canvasGO.transform, new Vector2(480f, -200f), new Vector2(160f, 120f));
+            minimapPanel.SetActive(false);
+            MakeText("MinimapLabel", minimapPanel.transform, Vector2.zero, "Island map\n(MVP)", 12);
+            var minimapBtn = MakeButton("Map", canvasGO.transform, new Vector2(520f, -310f));
+            minimapBtn.onClick.AddListener(() => minimapPanel.SetActive(!minimapPanel.activeSelf));
 
             // ---- Inventory panel ----
             var invPanel = MakePanel("InventoryPanel", canvasGO.transform, new Vector2(0f, 0f),
@@ -261,11 +302,16 @@ namespace SkyHarvest.Core
             // Rebuild structures from save
             var bmc = BuildModeController.Instance;
             if (bmc != null)
+            {
+                bmc.SetIsland(island);
                 foreach (var ss in data.Island.Structures)
                 {
                     var def = Data.GameDatabase.GetStructure(ss.StructureId);
                     if (def != null) bmc.PlaceStructure(new Vector2Int(ss.GridX, ss.GridY), def);
                 }
+            }
+
+            RestoreIslandContents(data);
 
             // Rebuild crops from save
             foreach (var cs in data.Island.Crops)
@@ -290,6 +336,49 @@ namespace SkyHarvest.Core
             WeatherManager.Instance?.StartWeather();
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = true });
             _gameStarted = true;
+        }
+
+        private void RestoreIslandContents(WorldSaveData data)
+        {
+            var registry = StructureRegistry.Instance;
+            if (registry == null) return;
+
+            foreach (var sd in data.Island.Storages)
+            {
+                var structure = registry.GetStructureAt(new Vector2Int(sd.GridX, sd.GridY));
+                if (structure is Storage.StorageContainer container)
+                {
+                    var slots = new System.Collections.Generic.List<(string, int)>();
+                    foreach (var slot in sd.Slots)
+                        if (!string.IsNullOrEmpty(slot.ItemId) && slot.Count > 0)
+                            slots.Add((slot.ItemId, slot.Count));
+                    container.RestoreFromSave(slots);
+                }
+            }
+
+            foreach (var snd in data.Island.Skynets)
+            {
+                var structure = registry.GetStructureAt(new Vector2Int(snd.GridX, snd.GridY));
+                if (structure is Skynet.Skynet skynet)
+                {
+                    var buffer = new System.Collections.Generic.List<(string, int)>();
+                    foreach (var slot in snd.Buffer)
+                        if (!string.IsNullOrEmpty(slot.ItemId) && slot.Count > 0)
+                            buffer.Add((slot.ItemId, slot.Count));
+                    skynet.RestoreFromSave(snd.LastCollectedUnixTime, buffer);
+                }
+            }
+
+            foreach (var wd in data.Island.Workshops)
+            {
+                var structure = registry.GetStructureAt(new Vector2Int(wd.GridX, wd.GridY));
+                if (structure is Workshop.WorkshopBase workshop)
+                {
+                    workshop.RestoreFromSave(
+                        wd.RecipeId, wd.OutputItemId, wd.OutputAmount,
+                        wd.TotalSeconds, wd.ElapsedSeconds, wd.State);
+                }
+            }
         }
 
         private void SpawnPlayer(Vector3 pos)
@@ -328,6 +417,11 @@ namespace SkyHarvest.Core
 
             if (_hud != null && pic != null && tools != null && interact != null)
                 _hud.Initialize(pic, tools, interact);
+            if (_inspector != null && interact != null)
+            {
+                var inspPanel = GameObject.Find("InspectorPanel");
+                if (inspPanel != null) _inspector.Initialize(inspPanel, interact, pic);
+            }
             if (_inventoryUI != null && pic != null)
             {
                 var invPanel = GameObject.Find("InventoryPanel");
@@ -363,6 +457,14 @@ namespace SkyHarvest.Core
         // ─────────────────────────────────────────────────────────────────────
         // UI helpers
         // ─────────────────────────────────────────────────────────────────────
+
+        private static void EnsureEventSystem()
+        {
+            if (Object.FindObjectOfType<EventSystem>() != null) return;
+            var esGO = new GameObject("EventSystem");
+            esGO.AddComponent<EventSystem>();
+            esGO.AddComponent<StandaloneInputModule>();
+        }
 
         private static Font DefaultFont() =>
             Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -453,6 +555,7 @@ namespace SkyHarvest.Core
             t.color     = Color.white;
             t.text      = label;
             t.alignment = TextAnchor.MiddleCenter;
+            t.raycastTarget = false;
 
             return go.GetComponent<Button>();
         }
@@ -484,9 +587,12 @@ namespace SkyHarvest.Core
             textRT.sizeDelta        = new Vector2(200f, 30f);
             var t = textGO.GetComponent<Text>();
             t.font = DefaultFont(); t.fontSize = 14; t.color = Color.white;
+            t.alignment = TextAnchor.MiddleLeft;
+            t.supportRichText = false;
 
             var field = go.GetComponent<InputField>();
-            // textComponent set via SetTextComponentTarget in some Unity versions; skip for stub compat
+            field.textComponent = t;
+            field.lineType = InputField.LineType.SingleLine;
             return field;
         }
     }

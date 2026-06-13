@@ -36,7 +36,25 @@ namespace SkyHarvest.Storage
 
         public override void Interact(PlayerController player)
         {
+            if (TryDemolishWithHammer(player)) return;
             EventBus.Publish(new OpenStorageEvent { Container = this, Player = player });
+        }
+
+        /// <summary>Restore stored items after save load.</summary>
+        public void RestoreFromSave(System.Collections.Generic.IEnumerable<(string itemId, int count)> slots)
+        {
+            foreach (var slot in Storage.Slots)
+            {
+                slot.ItemId = null;
+                slot.Count = 0;
+            }
+
+            if (slots == null) return;
+            foreach (var (itemId, count) in slots)
+            {
+                if (string.IsNullOrEmpty(itemId) || count <= 0) continue;
+                Storage.TryAdd(itemId, count);
+            }
         }
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using SkyHarvest.Core;
 using SkyHarvest.Building;
 using SkyHarvest.Farming;
+using SkyHarvest.Workshop;
 
 namespace SkyHarvest.SaveLoad
 {
@@ -103,6 +104,20 @@ namespace SkyHarvest.SaveLoad
                         foreach (var (itemId, amount) in skynet.GetBufferContents())
                             snd.Buffer.Add(new SlotSaveData { ItemId = itemId, Count = amount });
                         data.Island.Skynets.Add(snd);
+                    }
+
+                    if (s is WorkshopBase wb && wb.ProcessState != WorkshopProcess.State.Idle)
+                    {
+                        data.Island.Workshops.Add(new WorkshopSaveData
+                        {
+                            GridX = s.GridPosition.x, GridY = s.GridPosition.y,
+                            RecipeId = wb.ActiveRecipeId ?? "",
+                            OutputItemId = wb.ActiveOutputItemId ?? "",
+                            OutputAmount = wb.ActiveOutputAmount,
+                            TotalSeconds = wb.ActiveTotalSeconds,
+                            ElapsedSeconds = wb.ActiveElapsedSeconds,
+                            State = wb.ProcessState.ToString()
+                        });
                     }
                 }
             }

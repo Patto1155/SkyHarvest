@@ -17,7 +17,7 @@ namespace SkyHarvest.Audio
             _sfx     = gameObject.AddComponent<AudioSource>();
             _ambient = gameObject.AddComponent<AudioSource>();
             _ambient.loop   = true;
-            _ambient.volume = 0.3f;
+            _ambient.volume = 0.12f;
 
             EventBus.Subscribe<CropHarvestedEvent>(_  => PlayHarvest());
             EventBus.Subscribe<CropPlantedEvent>(_    => PlayPlant());
@@ -74,26 +74,38 @@ namespace SkyHarvest.Audio
 
         private AudioClip BuildAmbientClip(WeatherType weather)
         {
+            // Soft procedural drones — no raw white noise (that read as loud static when looped).
             int sampleRate = 44100;
-            int samples = sampleRate * 2;
+            int samples = sampleRate * 4;
             var clip = AudioClip.Create("ambient", samples, 1, sampleRate, false);
             var data = new float[samples];
-            var rng  = new System.Random((int)weather);
 
             float baseHz = weather switch
             {
-                WeatherType.LightRain   => 200f,
-                WeatherType.HeavyStorm  => 120f,
-                WeatherType.GaleWinds   => 160f,
-                WeatherType.FogBank     => 60f,
-                _                       => 80f
+                WeatherType.LightRain   => 180f,
+                WeatherType.HeavyStorm  => 90f,
+                WeatherType.GaleWinds   => 130f,
+                WeatherType.FogBank     => 55f,
+                WeatherType.ClearSkies  => 70f,
+                _                       => 65f
             };
-            float vol = 0.08f;
+            float vol = weather switch
+            {
+                WeatherType.ClearSkies => 0.015f,
+                WeatherType.FogBank    => 0.02f,
+                _                      => 0.03f
+            };
+
             for (int i = 0; i < samples; i++)
             {
-                float noise = (float)(rng.NextDouble() * 2.0 - 1.0) * 0.4f;
-                float tone  = Mathf.Sin(2f * Mathf.PI * baseHz * i / sampleRate) * 0.3f;
-                data[i] = (noise + tone) * vol;
+                float t = (float)i / sampleRate;
+                float lfo = 0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * 0.15f * t);
+                float tone = Mathf.Sin(2f * Mathf.PI * baseHz * t) * 0.55f
+                           + Mathf.Sin(2f * Mathf.PI * baseHz * 1.5f * t) * 0.25f;
+                float rain = weather == WeatherType.LightRain || weather == WeatherType.HeavyStorm
+                    ? Mathf.Sin(2f * Mathf.PI * 2200f * t) * 0.04f * lfo
+                    : 0f;
+                data[i] = (tone + rain) * vol * lfo;
             }
             clip.SetData(data, 0);
             return clip;

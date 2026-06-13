@@ -1,5 +1,10 @@
 # Implementation Notes — deviations from the MVP plan and why
 
+## Agent validation (before handoff)
+
+Run `bash tools/validate.sh` from the repo root before claiming work is done. Full usage, flags,
+troubleshooting, and what is *not* covered: **[docs/VALIDATION.md](VALIDATION.md)**.
+
 The MVP plan (`docs/superpowers/plans/2026-03-14-sky-harvest-mvp.md`) was written assuming interactive
 Unity Editor development. This implementation was produced in a headless environment with no Unity
 Editor available, optimizing for one goal: **clone the repo, open in Unity 2022.3 LTS, press Play, and
@@ -20,6 +25,7 @@ the full game runs with zero manual wiring.** That forced these deviations:
 Functional additions beyond the plan (small, spec-aligned):
 - `scrap_to_skynet_frame` forge recipe + buildable `skynet` structure, closing the spec's
   "forge better nets → catch better debris" loop at tier 1.
+- `InspectorPanel` + `ContextualTooltipUI` (Q to inspect; first-use tooltips) wired from `Bootstrap` — plan UI chunk, code-built like other HUD.
 - Audio cues are synthesized procedurally at runtime (no .wav assets can be authored here) by
   `AudioCueSystem` — distinct chimes/thuds per spec §5 player-readable cues.
 

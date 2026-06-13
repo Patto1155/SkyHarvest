@@ -30,6 +30,12 @@ namespace SkyHarvest.Workshop
         public bool IsProcessing => _process.IsProcessing;
         public bool IsComplete   => _process.IsComplete;
 
+        public string ActiveRecipeId     => _process.RecipeId;
+        public string ActiveOutputItemId => _process.OutputItemId;
+        public int    ActiveOutputAmount => _process.OutputAmount;
+        public float  ActiveTotalSeconds => _process.TotalSeconds;
+        public float  ActiveElapsedSeconds => _process.ElapsedSeconds;
+
         public abstract WorkshopType GetWorkshopType();
 
         protected virtual void Start()
@@ -218,8 +224,24 @@ namespace SkyHarvest.Workshop
 
         public override void Interact(PlayerController player)
         {
+            if (TryDemolishWithHammer(player)) return;
             // Open WorkshopUI — UI agent handles this via event.
             EventBus.Publish(new WorkshopInteractEvent { Workshop = this, Player = player });
+        }
+
+        /// <summary>Restore workshop batch state after save load.</summary>
+        public void RestoreFromSave(string recipeId, string outputItemId, int outputAmount,
+            float totalSeconds, float elapsedSeconds, string stateName)
+        {
+            if (!System.Enum.TryParse<WorkshopProcess.State>(stateName, out var state)) return;
+            if (state == WorkshopProcess.State.Idle || state == WorkshopProcess.State.Ruined) return;
+
+            _process.Restore(recipeId, outputItemId, outputAmount, totalSeconds, elapsedSeconds, state);
+
+            if (state == WorkshopProcess.State.Processing)
+                SetWorkingVisual();
+            else if (state == WorkshopProcess.State.Complete)
+                SetIdleVisual();
         }
     }
 

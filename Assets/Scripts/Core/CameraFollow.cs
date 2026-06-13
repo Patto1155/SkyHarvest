@@ -6,7 +6,7 @@ namespace SkyHarvest.Core
     {
         public Transform? Target;
         public float SmoothSpeed = 8f;
-        public Vector3 Offset = new Vector3(0f, 4f, -10f);
+        public Vector3 Offset = new Vector3(0f, 0f, -10f);
 
         private void LateUpdate()
         {

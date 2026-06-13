@@ -95,5 +95,20 @@ namespace SkyHarvest.Workshop
             OutputAmount   = 0;
             TotalSeconds   = 0f;
         }
+
+        /// <summary>Restore in-progress or completed batch from save.</summary>
+        public void Restore(string recipeId, string outputItemId, int outputAmount,
+            float totalSeconds, float elapsedSeconds, State state)
+        {
+            RecipeId       = recipeId;
+            OutputItemId   = outputItemId;
+            OutputAmount   = outputAmount;
+            TotalSeconds   = totalSeconds;
+            ElapsedSeconds = elapsedSeconds;
+            Progress       = totalSeconds > 0f
+                ? System.Math.Min(elapsedSeconds / totalSeconds, 1f)
+                : 0f;
+            CurrentState   = state;
+        }
     }
 }

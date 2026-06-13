@@ -83,6 +83,7 @@ namespace SkyHarvest.Building
 
         public override void Interact(PlayerController player)
         {
+            if (TryDemolishWithHammer(player)) return;
             // Future: refill player watering can.
         }
     }
