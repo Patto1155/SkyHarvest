@@ -11,9 +11,20 @@ Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliatio
 
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
-## Current state (2026-06-13, session 2)
+## Current state (2026-06-13, session 3 — cozy/warm pass)
 
-- PR #2 (terrain fix + build pipeline) MERGED. Session-2 branch: `feat/session-2026-06-13` (PR #3).
+- **Session 3 (this branch `feat/cozy-warmth-pass`):** the warmth pass + a fast visual-iteration
+  toolchain. Validate green (82 EditMode + 73 NUnit). See `screenshots/cozy_pass_after.png`.
+  - **NEW tooling — `VisualConfig` + `visual.json` + `tools/shot.sh`** (read WORKFLOW.md "Fast
+    cozy/visual iteration loop"). All look values are data; edit JSON, re-run shot.sh, no recompile.
+  - Sky gradient + drifting clouds replace the black void (`SkyBackground`); warm earth tint on
+    fertile cells (`IslandRenderer.WarmTint`); avatar drop shadow; **forge/shelter warm glow pool**
+    (`StructureGlow`, attaches in `BuildModeController.PlaceStructure`); golden ripe-crop glow + sway
+    (`CropPlot`). Starting island reshaped to a compact ~4×3 fertile core + cliff rim (radius 4 via
+    `visual.json`, generator favours FertileValley now). Spawn island is natural/untilled — the
+    player tills; the harness only seeds a forge+crops for the screenshot.
+- PR #2 (terrain fix + build pipeline) MERGED. PR #3 (staged building, camera zoom, input fixes,
+  verify harness) **MERGED** → main `443ee68`.
 - **All four NEXT_SESSION tasks from last session are DONE:**
   - Camera: default ortho 2.5, smooth scroll-wheel zoom [2,6] (`CameraFollow`).
   - Staged building per spec §2: `ConstructionSite`/`ConstructionProgress` — free ghost placement,

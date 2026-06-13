@@ -1,50 +1,45 @@
 # Next session — task list
 
-Execute in order. Branch off `main` (merge PR #3 first if still open), validate
+Execute in order. Branch off `main` (merge the cozy-pass PR first if still open), validate
 (`bash tools/check.sh` after every C# change — see the `--no-build` gotcha in START_HERE),
-screenshot-verify visual work (WORKFLOW.md), push to a branch + PR.
+visual-verify via the fast loop (`bash tools/shot.sh` + `visual.json` — see WORKFLOW.md), PR.
 
-**Session theme: the cozy/pretty pass.** Patrick wants the game to look pretty and feel
-cozy/peaceful. Spec §7 palette: dark earth + warm light accents ("warm island vs cool void").
-Haiku's screenshot review (2026-06-13) said the foundation is clean but reads cold/industrial.
+**Session 3 (cozy/warm pass) is DONE.** Sky gradient + clouds, warm earth tint, forge/shelter
+glow, golden ripe-crop glow + sway, avatar shadow, compact ~4×3 starter island — all driven by
+`Assets/StreamingAssets/visual.json` and verifiable in one screenshot via `tools/shot.sh`.
 
-## 1. Warm lighting & palette pass (biggest cozy lever)
+## 1. Keep tuning the look (cheap now — JSON only, no recompile)
 
-- Warm point-light feel around structures: forge glow, lantern amber on shelter/workshops —
-  cheap 2D approach: additive soft-glow sprites (radial gradient, warm orange, low alpha)
-  parented to structures; subtle alpha pulse for flicker.
-- Background: replace flat near-black camera color with a subtle vertical gradient (moody
-  dusk blue→charcoal) + a distant cloud layer (slow parallax drift) so the island floats in
-  a sky, not a void. (Bootstrap builds the camera; add a background quad/canvas behind island.)
-- Terrain warmth: nudge tile tinting toward warm earth on fertile cells (IslandRenderer
-  applies per-cell sprites — add a slight warm `SpriteRenderer.color` tint variation).
+- `visual.json` is the dial board. Open `screenshots/cozy_pass_after.png` for the current state.
+  Likely next nudges: clouds still subtle (raise `cloudAlpha`/`cloudCount`); the forge glow can
+  feel blobby (tune `glowRadius`/`glowAlpha`); fertile tiles a touch flat (try a warmer
+  `warmEarthTint` or higher `earthTintStrength`). Edit → `bash tools/shot.sh` → look.
+- **Depth is the remaining art gap:** the island is a flat diamond — the concept art's chunky
+  rocky CLIFF SIDES need a side/elevation sprite per edge cell (not just top tiles). Bigger job;
+  needs art. Consider a simple dark "rock skirt" sprite under edge cells as a cheap approximation.
 
-## 2. Avatar & crop readability polish
+## 2. Audio/ambience cozy layer
 
-- Avatar drop shadow (small dark ellipse sprite under player, ~40% alpha) — grounds the
-  character, Haiku flagged it as "pasted on".
-- Crop growth visibility: stronger per-stage visual difference + gentle sway on mature crops
-  (SpriteAnimator already loops; add slight sine x-skew or scale pulse). Ripe crops should
-  glow warm per spec ("golden crop glow").
-- Check Haiku's claimed faint tile seams at green/grey diagonal boundaries (may be JPEG-y
-  artifact — PR #2 supposedly fixed seams; verify at zoom 2 in a screenshot run).
+- `AudioCueSystem` exists — verify it has actual clips wired; add a gentle ambient loop (wind +
+  birds on ClearSkies, rain patter on LightRain) + soft chimes for workshop-done / crop-ripe.
+  Spec §5: the island communicates via audio. 2–3 free CC0 loops would transform the feel.
 
-## 3. Audio/ambience cozy layer (if time)
+## 3. The debris → skynet → expansion loop (gameplay, Patrick is keen)
 
-- `AudioCueSystem` exists — verify it has actual clips wired; add gentle ambient loop
-  (wind + birds on ClearSkies, rain patter on LightRain) and soft chimes for workshop-done.
-  Spec §5: island communicates via audio. Even 2–3 free CC0 loops would transform feel.
+- Spec §3 (`specs/2026-03-17-sky-harvest-design.md`): debris lands on cliff edges; a craftable
+  **Skynet** passively catches drifting debris ("checked like a mailbox"); debris + scaffolding
+  EXPAND the island outward. Code already has `IslandExpansion.Expand`, `DebrisSpawner`, a
+  `Skynet` structure + save fields. Audit what's wired vs stubbed and close the loop: debris
+  visibly lands → scavenge → build/feed a skynet → scaffold a new cell. This is the "start small,
+  grow outward" payoff the compact 4×3 island sets up.
 
 ## 4. Leftover scope items (small)
 
-- G6 hotbar mismatch (SCOPE_LEDGER): HUD draws 6 slots, only 1–4 wired. Either wire 5–6
-  (seed slots?) or render only 4. Decide + do (15 min).
-- Human playtest checklist (not automatable, 10 min with Patrick): WASD feel, scroll-zoom
-  feel, mouse ghost placement, build-menu arrows, Tab/Esc in every panel combination.
-  PlayModeVerify covers everything else (19/19 green 2026-06-13).
+- G6 hotbar mismatch (SCOPE_LEDGER): HUD draws 6 slots, only 1–4 wired. Wire 5–6 or render 4.
+- Human playtest checklist (10 min with Patrick): WASD feel, scroll-zoom, ghost placement,
+  build-menu arrows, Tab/Esc in every panel combo. PlayModeVerify covers the rest (19/19).
 
 ## Done-criteria
 
-`tools/validate.sh` green; before/after screenshots (PlayModeScreenshots or PlayModeVerify)
-showing the warmth pass; Haiku re-review says tone moved toward cozy; PR opened; this file +
-START_HERE refreshed for session 4.
+`tools/validate.sh` green; before/after via `tools/shot.sh`; PR opened; this file + START_HERE
+refreshed.

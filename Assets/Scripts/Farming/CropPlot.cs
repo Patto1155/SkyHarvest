@@ -29,8 +29,10 @@ namespace SkyHarvest.Farming
 
         // ---- sprite rendering ----
         private SpriteRenderer? _cropSr;
+        private SpriteRenderer? _glowSr;   // golden glow shown when ripe
         private Sprite[]? _cropStrip;   // frames 0-3 = stages, 4 = dead
         private const int CropFrameWidth = 64;
+        private float _swaySeed;
 
         // -----------------------------------------------------------------------
         // Unity lifecycle
@@ -43,6 +45,26 @@ namespace SkyHarvest.Farming
             go.transform.localPosition = Vector3.zero;
             _cropSr = go.AddComponent<SpriteRenderer>();
             _cropSr.sortingOrder = GridMath.SortingOrder(transform.position.y, bias: 0);
+
+            // Warm "golden crop glow" halo, shown only when the crop is ripe (spec §7).
+            var glowGo = new GameObject("CropGlow");
+            glowGo.transform.SetParent(transform);
+            glowGo.transform.localPosition = new Vector3(0f, 0.15f, 0f);
+            glowGo.transform.localScale = new Vector3(0.75f, 0.55f, 1f);
+            _glowSr = glowGo.AddComponent<SpriteRenderer>();
+            _glowSr.sprite = ProcGfx.SoftDisc(VisualConfig.Current.CropGlow, 64, 1.8f);
+            _glowSr.sortingOrder = _cropSr.sortingOrder - 1;   // behind the crop sprite
+            _glowSr.enabled = false;
+
+            _swaySeed = Random.value * 10f;
+        }
+
+        // Gentle sway on established crops so the field feels alive (spec §7 "slight sway").
+        private void Update()
+        {
+            if (_cropSr == null || Crop == null || Crop.IsDead || Crop.CurrentStage < 1) return;
+            float ang = Mathf.Sin(Time.time * 1.5f + _swaySeed) * VisualConfig.Current.cropSwayDeg;
+            _cropSr.transform.localRotation = Quaternion.Euler(0f, 0f, ang);
         }
 
         private void OnEnable()  => InteractableRegistry.Register(this);
@@ -102,8 +124,11 @@ namespace SkyHarvest.Farming
             if (Crop == null)
             {
                 _cropSr.enabled = false;
+                if (_glowSr != null) _glowSr.enabled = false;
                 return;
             }
+
+            if (_glowSr != null) _glowSr.enabled = Crop.IsHarvestable;
 
             // Load strip lazily
             if (_cropStrip == null && !string.IsNullOrEmpty(Crop.CropId))

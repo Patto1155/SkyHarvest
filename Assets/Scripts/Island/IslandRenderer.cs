@@ -80,6 +80,8 @@ namespace SkyHarvest.Island
             int variant  = CellHashVariant(cell.GridPos, TerrainProperties.VariantCount(cell.Terrain));
             string path  = TerrainProperties.TilePath(cell.Terrain);
 
+            sr.color = WarmTint(cell.Terrain);
+
             Sprite[] strip = TryLoadTileStrip(path, TileFrameWidth);
             if (strip != null && strip.Length > 0)
             {
@@ -168,6 +170,24 @@ namespace SkyHarvest.Island
                 return SpriteLoader.LoadTile(path);
             }
             catch { return null; }
+        }
+
+        /// <summary>Per-terrain warm tint so the palette reads cozy earth, not cold grey.
+        /// Fertile soil gets the full warm nudge; rock/cliff a gentler one; springs stay cool.</summary>
+        private static Color WarmTint(TerrainType terrain)
+        {
+            var cfg = SkyHarvest.Core.VisualConfig.Current;
+            float strength = cfg.earthTintStrength;
+            switch (terrain)
+            {
+                case TerrainType.FertileValley: break;                 // full warmth
+                case TerrainType.RockyPlateau:
+                case TerrainType.WindCorridor:  strength *= 0.5f; break;
+                case TerrainType.CliffEdge:     strength *= 0.65f; break;
+                case TerrainType.NaturalSpring: strength *= 0.2f; break;
+                default: strength *= 0.5f; break;
+            }
+            return Color.Lerp(Color.white, cfg.WarmEarthTint, strength);
         }
 
         private static Sprite MagentaFallback()

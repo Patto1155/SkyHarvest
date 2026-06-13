@@ -1,0 +1,26 @@
+{
+  "_comment": "Cozy/warm visual tuning. Edit values, run tools/shot.sh, look. No recompile needed. Colours are #RRGGBB.",
+
+  "islandRadius": 4,
+
+  "skyTop": "#34406B",
+  "skyBottom": "#14101C",
+  "cloudColor": "#46506B",
+  "cloudSpeed": 0.15,
+  "cloudCount": 7,
+  "cloudAlpha": 0.16,
+
+  "glowColor": "#FFA838",
+  "glowAlpha": 0.6,
+  "glowRadius": 2.1,
+  "glowPulse": 0.14,
+
+  "cropGlowColor": "#FFD964",
+  "cropGlowAlpha": 0.75,
+  "cropSwayDeg": 3.0,
+
+  "warmEarthTint": "#FFD9A0",
+  "earthTintStrength": 0.38,
+
+  "avatarShadowAlpha": 0.40
+}
