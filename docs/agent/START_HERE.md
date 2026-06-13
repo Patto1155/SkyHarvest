@@ -11,6 +11,22 @@ Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliatio
 
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
+## Current state (2026-06-13, session 4 — unified hotbar)
+
+- **Session 4 (branch `feat/scope-cleanup`):** closed G6 with a **unified Stardew-style hotbar** —
+  one bar holds 4 tool slots + 6 inventory item slots, number keys 1-9 then 0 select either a tool
+  or an item, the selected slot is highlighted, and stack counts show. Removed the old split (a
+  6-slot inventory strip + separate 1-4 tool keys + a redundant top-left tool icon). Core selection
+  logic is the pure, tested `HotbarModel` (10 new unit tests); `Hotbar` MonoBehaviour wraps it and
+  drives `ToolSystem`. A held seed now plants on interact (hoe no longer auto-sows).
+  - **Also fixed latent G12** discovered en route: `FarmingActions.TryTill` had no runtime caller —
+    only the verify harness tilled, so a player could never make a plot in-game. `InteractionSystem`
+    now tills the faced bare cell when E is pressed with the Hoe selected. `PlayerController.Island`
+    is now assigned at spawn (was never set).
+  - Validated green: 92 EditMode + 92 NUnit (check.sh), Unity compile clean, contact-sheet verified
+    (`artifacts/screenshots/contact_sheet.png` — bar shows Hoe/Can/Sickle/Hammer + 4 seed stacks +
+    wood/scrap with counts and the selected slot highlighted).
+
 ## Current state (2026-06-13, session 3 — cozy/warm pass)
 
 - **Session 3 (this branch `feat/cozy-warmth-pass`):** the warmth pass + a fast visual-iteration

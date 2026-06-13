@@ -35,9 +35,12 @@ glow, golden ripe-crop glow + sway, avatar shadow, compact ~4×3 starter island 
 
 ## 4. Leftover scope items (small)
 
-- G6 hotbar mismatch (SCOPE_LEDGER): HUD draws 6 slots, only 1–4 wired. Wire 5–6 or render 4.
+- ~~G6 hotbar mismatch~~ ✅ DONE (session 4): unified Stardew-style hotbar (4 tools + 6 items,
+  number keys 1-9/0, selected-slot highlight, stack counts). Also fixed latent G12 — bare-ground
+  tilling was never wired to runtime; the player can now till the faced cell with the Hoe.
 - Human playtest checklist (10 min with Patrick): WASD feel, scroll-zoom, ghost placement,
-  build-menu arrows, Tab/Esc in every panel combo. PlayModeVerify covers the rest (19/19).
+  build-menu arrows, Tab/Esc in every panel combo, **new: number-key hotbar select + hold-seed
+  plant + hoe-till-bare-ground**. PlayModeVerify covers the rest (19/19).
 
 ## Done-criteria
 

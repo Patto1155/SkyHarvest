@@ -104,22 +104,24 @@ namespace SkyHarvest.Core
             canvasGO.AddComponent<CanvasScaler>();
             canvasGO.AddComponent<GraphicRaycaster>();
 
-            // ---- Hotbar (bottom centre, 6 slots) ----
+            // ---- Unified hotbar (bottom centre): 4 tool slots + 6 item slots ----
+            // Number keys 1-9 then 0 select a slot; the selected tool/seed is what
+            // gets used.  See Hotbar.cs / HotbarModel.
+            const int HotbarSlotCount = 10;
             var hotbarGO   = new GameObject("Hotbar", typeof(RectTransform));
             hotbarGO.transform.SetParent(canvasGO.transform, false);
-            var hotbarSlots = new GameObject[6];
-            var hotbarIcons = new Image[6];
-            for (int i = 0; i < 6; i++)
+            var hotbarSlots = new GameObject[HotbarSlotCount];
+            float hbStart = -(HotbarSlotCount - 1) * 52f / 2f;
+            for (int i = 0; i < HotbarSlotCount; i++)
             {
                 var slotGO = MakeSlot($"Slot{i}", hotbarGO.transform,
-                    new Vector2(-150f + i * 56f, -310f));
+                    new Vector2(hbStart + i * 52f, -310f));
+                // Static key-number badge, top-left (1-9 then 0).
+                var keyLbl = MakeText($"Key{i}", slotGO.transform, new Vector2(-16f, 18f),
+                    i < 9 ? (i + 1).ToString() : "0", 10);
+                keyLbl.color = new Color(1f, 1f, 1f, 0.6f);
                 hotbarSlots[i] = slotGO;
-                hotbarIcons[i] = slotGO.GetComponentInChildren<Image>();
             }
-
-            // ---- Equipped tool icon (top-left) ----
-            var toolSlotGO = MakeSlot("EquippedTool", canvasGO.transform, new Vector2(-540f, 300f));
-            var toolIcon   = toolSlotGO.transform.Find("Icon")!.GetComponent<Image>();
 
             // ---- Time + weather texts ----
             var timeText    = MakeText("TimeText",    canvasGO.transform, new Vector2(-500f, 320f), "00:00", 16);
@@ -130,8 +132,7 @@ namespace SkyHarvest.Core
             _hud.SetTimeText(timeText);
             _hud.SetWeatherText(weatherText);
             _hud.SetPromptText(promptText);
-            _hud.SetHotbarSlots(hotbarSlots, hotbarIcons);
-            _hud.SetToolIcon(toolIcon);
+            _hud.SetHotbarSlots(hotbarSlots);
 
             // ---- Contextual tooltip banner (top centre) ----
             var tipBanner = MakePanel("TooltipBanner", canvasGO.transform, new Vector2(0f, 260f), new Vector2(520f, 56f));
@@ -271,6 +272,7 @@ namespace SkyHarvest.Core
             _islandRenderer?.Render(island);
 
             SpawnPlayer(Vector3.zero);
+            if (_player != null) _player.Island = island;
             WireUIToPlayer();
             WireBuildMode(island);
 
@@ -295,6 +297,7 @@ namespace SkyHarvest.Core
             SaveManager.Instance?.ApplySaveData(data, island);
 
             SpawnPlayer(new Vector3(data.Player.PosX, data.Player.PosY, data.Player.PosZ));
+            if (_player != null) _player.Island = island;
             WireUIToPlayer();
             WireBuildMode(island);
 
@@ -411,6 +414,7 @@ namespace SkyHarvest.Core
             _player = go.AddComponent<PlayerController>();
             go.AddComponent<PlayerInventoryComponent>();
             go.AddComponent<ToolSystem>();
+            go.AddComponent<Hotbar>();          // unified tool+item hotbar (after inv + tools)
             go.AddComponent<InteractionSystem>();
 
             var sr = go.AddComponent<SpriteRenderer>();
@@ -446,7 +450,11 @@ namespace SkyHarvest.Core
             var interact = _player.GetComponent<InteractionSystem>();
 
             if (_hud != null && pic != null && tools != null && interact != null)
+            {
                 _hud.Initialize(pic, tools, interact);
+                var hotbar = _player.GetComponent<Hotbar>();
+                if (hotbar != null) _hud.SetHotbar(hotbar);
+            }
             if (_inspector != null && interact != null)
             {
                 var inspPanel = GameObject.Find("InspectorPanel");

@@ -92,14 +92,19 @@ namespace SkyHarvest.Farming
 
         public void Interact(PlayerController player)
         {
+            // Unified hotbar: a held seed plants into an empty tilled plot,
+            // regardless of which tool slot was last used (Stardew-style).
+            string? held = player.GetComponent<Hotbar>()?.HeldItemId;
+            if (IsEmpty && !string.IsNullOrEmpty(held) &&
+                FarmingActions.TrySow(this, player, held!))
+                return;
+
             if (!player.TryGetComponent<ToolSystem>(out var tools)) return;
 
             switch (tools.EquippedTool)
             {
                 case ToolType.Hoe:
-                    if (IsEmpty)
-                        FarmingActions.TrySow(this, player);
-                    else if (Crop != null && Crop.IsDead)
+                    if (Crop != null && Crop.IsDead)
                         FarmingActions.ClearDead(this);
                     break;
 

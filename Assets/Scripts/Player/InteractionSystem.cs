@@ -2,9 +2,12 @@
 // Owned by: world/island agent
 // Uses a static InteractableRegistry instead of Physics2D.OverlapCircleAll to
 // avoid physics-layer setup dependencies.  E to interact with nearest target
-// within 1.2 world units.
+// within 1.2 world units.  When nothing is targeted, E with the Hoe selected
+// tills the bare cell the player is facing (the only way to create new plots).
 using System.Collections.Generic;
 using UnityEngine;
+using SkyHarvest.Farming;
+using SkyHarvest.Island;
 
 namespace SkyHarvest.Player
 {
@@ -28,6 +31,7 @@ namespace SkyHarvest.Player
         private const float InteractRadius = 1.2f;
 
         private PlayerController? _player;
+        private IslandRenderer? _renderer;
 
         // ---- public read API (for UI agent) ----
         public IInteractable? CurrentTarget { get; private set; }
@@ -45,11 +49,37 @@ namespace SkyHarvest.Player
         {
             FindNearestInteractable();
 
-            if (CurrentTarget != null && Input.GetKeyDown(KeyCode.E))
+            if (!Input.GetKeyDown(KeyCode.E)) return;
+
+            if (CurrentTarget != null)
             {
                 _player?.PlayActionAnimation();
                 CurrentTarget.Interact(_player!);
             }
+            else
+            {
+                TryTillFacingCell();
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // Ground action — till the bare cell the player faces (Hoe selected).
+        // This is the only path that creates a new CropPlot; the plot then
+        // handles sow/water/harvest via its own Interact.
+        // -----------------------------------------------------------------------
+        private void TryTillFacingCell()
+        {
+            if (_player?.Island == null) return;
+            if (!_player.TryGetComponent<ToolSystem>(out var tools)) return;
+            if (tools.EquippedTool != ToolType.Hoe) return;
+
+            var cell = _player.Island.GetCell(_player.CurrentFacingCell);
+            if (cell == null || cell.IsTilled) return;
+            if (!TerrainProperties.CanPlaceCrops(cell.Terrain)) return;
+
+            if (_renderer == null) _renderer = Object.FindObjectOfType<IslandRenderer>();
+            if (FarmingActions.TryTill(cell, _player.Island, _renderer) != null)
+                _player.PlayActionAnimation();
         }
 
         // -----------------------------------------------------------------------
