@@ -72,7 +72,7 @@ namespace SkyHarvest.Core
             camGO.tag = "MainCamera";
             var cam = camGO.AddComponent<Camera>();
             cam.orthographic = true;
-            cam.orthographicSize = 4f;
+            cam.orthographicSize = 2.5f;   // close enough to read the avatar; scroll-wheel zoom [2,6] in CameraFollow
             cam.backgroundColor = new Color(0.11f, 0.1f, 0.11f, 1f);
             // CONVENTIONS: orthographic 2D sprites; dimetric layout is in GridMath + art, not camera tilt.
             cam.transform.position = new Vector3(0f, 0f, -10f);
@@ -266,6 +266,7 @@ namespace SkyHarvest.Core
 
             SpawnPlayer(Vector3.zero);
             WireUIToPlayer();
+            WireBuildMode(island);
 
             var debrisSpawner = Object.FindObjectOfType<DebrisSpawner>();
             debrisSpawner?.SetIsland(island);
@@ -289,6 +290,7 @@ namespace SkyHarvest.Core
 
             SpawnPlayer(new Vector3(data.Player.PosX, data.Player.PosY, data.Player.PosZ));
             WireUIToPlayer();
+            WireBuildMode(island);
 
             var pic = _player?.GetComponent<PlayerInventoryComponent>();
             if (pic != null)
@@ -299,15 +301,28 @@ namespace SkyHarvest.Core
             if (ts != null && !string.IsNullOrEmpty(data.Player.EquippedTool))
                 ts.EquipById(data.Player.EquippedTool);
 
-            // Rebuild structures from save
+            // Rebuild structures from save (finished + in-progress construction sites)
             var bmc = BuildModeController.Instance;
             if (bmc != null)
             {
-                bmc.SetIsland(island);
                 foreach (var ss in data.Island.Structures)
                 {
                     var def = Data.GameDatabase.GetStructure(ss.StructureId);
-                    if (def != null) bmc.PlaceStructure(new Vector2Int(ss.GridX, ss.GridY), def);
+                    if (def == null) continue;
+                    var pos = new Vector2Int(ss.GridX, ss.GridY);
+                    if (ss.Constructing)
+                    {
+                        var site = bmc.PlaceConstructionSite(pos, def);
+                        var delivered = new System.Collections.Generic.List<(string, int)>();
+                        foreach (var slot in ss.Delivered)
+                            if (!string.IsNullOrEmpty(slot.ItemId) && slot.Count > 0)
+                                delivered.Add((slot.ItemId, slot.Count));
+                        site.RestoreDelivered(delivered);
+                    }
+                    else
+                    {
+                        bmc.PlaceStructure(pos, def);
+                    }
                 }
             }
 
@@ -447,11 +462,47 @@ namespace SkyHarvest.Core
             _player.SetUIRefs(_inventoryUI, _workshopUI, _storageUI, _buildMenu, _pauseMenu);
         }
 
+        private void WireBuildMode(IslandData island)
+        {
+            var bmc = BuildModeController.Instance;
+            if (bmc == null) return;
+            bmc.SetIsland(island);
+            if (_player != null) bmc.SetPlayer(_player);
+        }
+
+        // Centralized hotkeys. Panels no longer read Tab/Esc themselves — having
+        // several Updates consume the same key in one frame caused close+pause
+        // double-fires (script execution order is undefined).
         private void Update()
         {
             if (!_gameStarted) return;
-            if (Input.GetKeyDown(KeyCode.Escape) && _pauseMenu != null)
-                _pauseMenu.Toggle();
+
+            var bmc = BuildModeController.Instance;
+
+            // B: toggle build mode (+ its structure menu)
+            if (Input.GetKeyDown(KeyCode.B) && bmc != null)
+            {
+                if (bmc.IsActive) { bmc.ExitBuildMode(); _buildMenu?.Close(); }
+                else              { bmc.EnterBuildMode(); _buildMenu?.Open(); }
+            }
+
+            // Tab: close storage if open, otherwise toggle the player's pack
+            if (Input.GetKeyDown(KeyCode.Tab))
+            {
+                if (_storageUI != null && _storageUI.IsOpen) _storageUI.Close();
+                else _inventoryUI?.Toggle();
+            }
+
+            // Esc: close the topmost open thing; pause only when nothing is open
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                if      (_buildMenu != null && _buildMenu.IsOpen)     { _buildMenu.Close(); bmc?.ExitBuildMode(); }
+                else if (bmc != null && bmc.IsActive)                 bmc.ExitBuildMode();
+                else if (_storageUI != null && _storageUI.IsOpen)     _storageUI.Close();
+                else if (_workshopUI != null && _workshopUI.IsOpen)   _workshopUI.Close();
+                else if (_inventoryUI != null && _inventoryUI.IsOpen) _inventoryUI.Close();
+                else _pauseMenu?.Toggle();
+            }
         }
 
         // ─────────────────────────────────────────────────────────────────────

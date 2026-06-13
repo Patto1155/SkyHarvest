@@ -40,6 +40,10 @@ namespace SkyHarvest.SaveLoad
     {
         public string StructureId = "";
         public int GridX, GridY;
+        // Staged building: true while still a ConstructionSite; Delivered holds
+        // materials already turned in. Absent in old saves → finished structure.
+        public bool Constructing;
+        public List<SlotSaveData> Delivered = new();
     }
 
     [Serializable]

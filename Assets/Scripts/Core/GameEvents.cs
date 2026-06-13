@@ -44,6 +44,8 @@ namespace SkyHarvest.Core
 
     // ---- Building ----
     public struct StructurePlacedEvent { public string StructureId; }
+    public struct ConstructionSitePlacedEvent { public string StructureId; }
+    public struct ConstructionProgressEvent { public string StructureId; public bool Complete; }
     public struct StructureDemolishedEvent { public string StructureId; }
     public struct IslandExpandedEvent { public int NewCellCount; }
 
