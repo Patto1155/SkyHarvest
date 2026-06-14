@@ -40,8 +40,10 @@ namespace SkyHarvest.Core
         {
             if (_cam == null) return;
 
+            // Plain scroll cycles the hotbar (see Hotbar.cs); Ctrl+scroll zooms the camera.
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
             float scroll = Input.mouseScrollDelta.y;
-            if (scroll != 0f)
+            if (ctrl && scroll != 0f)
                 _targetSize = Mathf.Clamp(_targetSize - scroll * ZoomStep, MinZoom, MaxZoom);
 
             _cam.orthographicSize = Mathf.Lerp(_cam.orthographicSize, _targetSize,

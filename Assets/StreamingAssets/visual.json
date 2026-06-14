@@ -5,10 +5,10 @@
 
   "skyTop": "#34406B",
   "skyBottom": "#14101C",
-  "cloudColor": "#46506B",
+  "cloudColor": "#6E7AA6",
   "cloudSpeed": 0.15,
-  "cloudCount": 7,
-  "cloudAlpha": 0.16,
+  "cloudCount": 11,
+  "cloudAlpha": 0.45,
 
   "glowColor": "#FFA838",
   "glowAlpha": 0.6,

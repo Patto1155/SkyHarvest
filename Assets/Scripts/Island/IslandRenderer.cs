@@ -167,7 +167,10 @@ namespace SkyHarvest.Island
         {
             try
             {
-                return SpriteLoader.LoadTile(path);
+                // Soil overlays are flat 64×32 diamonds and must share the terrain FACE pivot
+                // (0.5, 0 = bottom tip) so they sit ON the tile. LoadTile uses a center pivot
+                // (TilePivot) meant for the tall 64×80 tiles, which floated the overlay up off-grid.
+                return SpriteLoader.Load(path);
             }
             catch { return null; }
         }

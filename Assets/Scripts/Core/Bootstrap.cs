@@ -28,6 +28,7 @@ namespace SkyHarvest.Core
         private BuildMenuUI? _buildMenu;
         private PauseMenuUI? _pauseMenu;
         private MainMenuUI? _mainMenu;
+        private GameObject? _hudCanvas;   // panels live here; needed to find INACTIVE ones
 
         private bool _gameStarted;
 
@@ -99,6 +100,7 @@ namespace SkyHarvest.Core
         private void BuildUI()
         {
             var canvasGO = new GameObject("HUD");
+            _hudCanvas   = canvasGO;
             var canvas   = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvasGO.AddComponent<CanvasScaler>();
@@ -165,6 +167,8 @@ namespace SkyHarvest.Core
             var invPanel = MakePanel("InventoryPanel", canvasGO.transform, new Vector2(0f, 0f),
                 new Vector2(600f, 400f));
             invPanel.SetActive(false);
+            var invTitle = MakeText("InvTitle", invPanel.transform, new Vector2(0f, 175f), "Inventory", 20);
+            invTitle.fontStyle = FontStyle.Bold;
             _inventoryUI = canvasGO.AddComponent<InventoryUI>();
 
             var invLabels = new Text[20];
@@ -172,9 +176,13 @@ namespace SkyHarvest.Core
             for (int i = 0; i < 20; i++)
             {
                 float x = -260f + (i % 5) * 120f;
-                float y =  150f - (i / 5) * 80f;
+                float y =  130f - (i / 5) * 80f;
                 var sg = MakeSlot($"InvSlot{i}", invPanel.transform, new Vector2(x, y));
                 invLabels[i] = sg.GetComponentInChildren<Text>();
+                // Wider, lower label so item names (e.g. "wheat_seed") don't truncate.
+                invLabels[i].rectTransform.sizeDelta     = new Vector2(116f, 14f);
+                invLabels[i].rectTransform.anchoredPosition = new Vector2(0f, -32f);
+                invLabels[i].fontSize = 11;
                 invIcons[i]  = sg.GetComponentInChildren<Image>();
             }
             _inventoryUI.SetSlotDisplays(invLabels, invIcons);
@@ -459,32 +467,41 @@ namespace SkyHarvest.Core
             }
             if (_inspector != null && interact != null)
             {
-                var inspPanel = GameObject.Find("InspectorPanel");
+                var inspPanel = FindPanel("InspectorPanel");
                 if (inspPanel != null) _inspector.Initialize(inspPanel, interact, pic);
             }
             if (_inventoryUI != null && pic != null)
             {
-                var invPanel = GameObject.Find("InventoryPanel");
+                var invPanel = FindPanel("InventoryPanel");
                 if (invPanel != null) _inventoryUI.Initialize(invPanel, pic);
             }
             if (_workshopUI != null && pic != null)
             {
-                var wsPanel = GameObject.Find("WorkshopPanel");
+                var wsPanel = FindPanel("WorkshopPanel");
                 if (wsPanel != null) _workshopUI.Initialize(wsPanel, pic);
             }
             if (_storageUI != null && pic != null)
             {
-                var stPanel = GameObject.Find("StoragePanel");
+                var stPanel = FindPanel("StoragePanel");
                 if (stPanel != null) _storageUI.Initialize(stPanel, pic);
             }
             if (_buildMenu != null)
             {
                 var bmc    = BuildModeController.Instance;
-                var bmPanel = GameObject.Find("BuildMenuPanel");
+                var bmPanel = FindPanel("BuildMenuPanel");
                 if (bmPanel != null && bmc != null) _buildMenu.Initialize(bmPanel, bmc);
             }
 
             _player.SetUIRefs(_inventoryUI, _workshopUI, _storageUI, _buildMenu, _pauseMenu);
+        }
+
+        // GameObject.Find ignores INACTIVE objects, and every panel is created SetActive(false),
+        // so it returned null and the panels were never Initialize()d (Tab/B/Q did nothing).
+        // Transform.Find locates inactive children by name.
+        private GameObject? FindPanel(string name)
+        {
+            var t = _hudCanvas != null ? _hudCanvas.transform.Find(name) : null;
+            return t != null ? t.gameObject : null;
         }
 
         private void WireBuildMode(IslandData island)
@@ -570,7 +587,8 @@ namespace SkyHarvest.Core
             rt.anchoredPosition = pos;
             rt.sizeDelta        = new Vector2(48f, 48f);
             var bg  = go.GetComponent<Image>();
-            bg.color = new Color(0.2f, 0.18f, 0.18f, 0.9f);
+            // Lighter than the panel so empty slots read as a visible grid, not black-on-black.
+            bg.color = new Color(0.40f, 0.34f, 0.28f, 1f);
             bg.sprite = SpriteLoader.Load("Sprites/ui/slot");
 
             var iconGO = new GameObject("Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -603,7 +621,9 @@ namespace SkyHarvest.Core
             rt.anchoredPosition = pos;
             rt.sizeDelta        = size;
             var img = go.GetComponent<Image>();
-            img.color  = new Color(0.12f, 0.1f, 0.1f, 0.92f);
+            // Warm, OPAQUE panel — the old near-black @0.92 let the world bleed through
+            // and read as an unreadable black box.
+            img.color  = new Color(0.27f, 0.21f, 0.17f, 0.99f);
             img.sprite = SpriteLoader.Load("Sprites/ui/panel");
             return go;
         }

@@ -64,6 +64,9 @@ namespace SkyHarvest.Core
                 cgo.transform.localScale = new Vector3(scaleX, scaleY, 1f);
                 var csr = cgo.AddComponent<SpriteRenderer>();
                 csr.sprite = cloudSprite;
+                // cloudAlpha was read from visual.json but never applied — clouds were invisible.
+                // SoftDisc bakes the cloud colour + a soft radial falloff; this scales overall opacity.
+                csr.color = new Color(1f, 1f, 1f, Mathf.Clamp01(cfg.cloudAlpha));
                 csr.sortingOrder = CloudSortingOrder + i;
                 _clouds[i] = new Cloud
                 {

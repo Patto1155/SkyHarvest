@@ -175,27 +175,43 @@ public static class PlayModeVerify
 
     private static void StepInventory()
     {
+        // Assert the PANEL actually shows — not just the IsOpen bool. The bool flips even when
+        // the panel was never Initialize()d (the GameObject.Find-on-inactive bug), which is how
+        // this step falsely passed while Tab did nothing in the real build.
         var ui = UnityEngine.Object.FindObjectOfType<InventoryUI>();
+        var panel = FindPanelGo("InventoryPanel");
         ui.Toggle();
-        bool opened = ui.IsOpen;
+        bool shown = ui.IsOpen && panel != null && panel.activeInHierarchy;
         Shot("inventory_open");
         ui.Toggle();
-        Check("Inventory toggle (Tab path)", opened && !ui.IsOpen, $"opened={opened}, closedAgain={!ui.IsOpen}");
+        bool hidden = !ui.IsOpen && (panel == null || !panel.activeInHierarchy);
+        Check("Inventory toggle (Tab path)", shown && hidden,
+            $"panelShown={shown}, hiddenAgain={hidden}");
     }
 
     private static void StepBuildMenu()
     {
         var bmc = BuildModeController.Instance;
         var menu = UnityEngine.Object.FindObjectOfType<BuildMenuUI>();
+        var panel = FindPanelGo("BuildMenuPanel");
         bmc.EnterBuildMode();
         menu.Open();
-        bool menuOpen = menu.IsOpen;
+        bool menuShown = menu.IsOpen && panel != null && panel.activeInHierarchy;   // real visibility
         bmc.SetSelected(GameDatabase.GetStructure("shelter"));
         bool ghost = GameObject.Find("BuildGhost") != null;
         Shot("build_menu_ghost");
         menu.Close();
-        Check("Build mode + menu + ghost (B path)", menuOpen && bmc.IsActive && ghost,
-            $"menu={menuOpen}, active={bmc.IsActive}, ghost={ghost}");
+        Check("Build mode + menu + ghost (B path)", menuShown && bmc.IsActive && ghost,
+            $"menuPanelShown={menuShown}, active={bmc.IsActive}, ghost={ghost}");
+    }
+
+    // Finds a panel GameObject by name INCLUDING inactive ones (GameObject.Find can't).
+    private static GameObject FindPanelGo(string name)
+    {
+        var hud = GameObject.Find("HUD");
+        if (hud == null) return null;
+        var t = hud.transform.Find(name);
+        return t != null ? t.gameObject : null;
     }
 
     private static void StepPlaceSite()

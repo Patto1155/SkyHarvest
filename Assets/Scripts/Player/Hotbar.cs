@@ -127,6 +127,21 @@ namespace SkyHarvest.Player
                     return;
                 }
             }
+
+            // Mouse wheel cycles the hotbar (Minecraft/Terraria style); wheel down → next slot.
+            // Ctrl+scroll is reserved for camera zoom (CameraFollow), so ignore it here.
+            bool ctrl = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+            if (!ctrl && Model.SlotCount > 0)
+            {
+                float scroll = Input.mouseScrollDelta.y;
+                if (scroll != 0f)
+                {
+                    int count = Model.SlotCount;
+                    int dir   = scroll < 0f ? 1 : -1;
+                    int next  = ((Model.SelectedIndex + dir) % count + count) % count;
+                    SelectSlot(next);
+                }
+            }
         }
 
         public void SelectSlot(int index)
