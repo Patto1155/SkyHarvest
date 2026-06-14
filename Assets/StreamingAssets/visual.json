@@ -22,5 +22,11 @@
   "warmEarthTint": "#FFD9A0",
   "earthTintStrength": 0.38,
 
-  "avatarShadowAlpha": 0.40
+  "avatarShadowAlpha": 0.40,
+
+  "_comment_autotile": "Terrain autotile seam elimination. Underlay = dark diamond under each tile. Blend feather = edge gradient overlays between terrain types.",
+  "tileUnderlayColor": "#1A1208",
+  "tileUnderlayScale": 1.06,
+  "blendFeatherAlpha": 0.55,
+  "blendFeatherFalloff": 1.6
 }

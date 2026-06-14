@@ -46,6 +46,16 @@ namespace SkyHarvest.Core
         // ---- avatar grounding ----
         public float avatarShadowAlpha = 0.40f;
 
+        // ---- terrain autotile / seam elimination ----
+        /// <summary>Colour of the dark-earth underlay diamond drawn under every cell.</summary>
+        public string tileUnderlayColor  = "#1A1208";   // very dark warm brown
+        /// <summary>How much bigger (fraction) the underlay is vs the tile face. 1.05 = 5% oversized.</summary>
+        public float  tileUnderlayScale  = 1.06f;
+        /// <summary>Master alpha for terrain feather/blend overlays.</summary>
+        public float  blendFeatherAlpha  = 0.55f;
+        /// <summary>Falloff exponent for the feather gradient (higher = sharper edge).</summary>
+        public float  blendFeatherFalloff = 1.6f;
+
         // ─────────────────────────────────────────────────────────────────────
         // Loading
         // ─────────────────────────────────────────────────────────────────────
@@ -97,6 +107,7 @@ namespace SkyHarvest.Core
         public Color GlowColor    => WithAlpha(Parse(glowColor,  new Color(1f, 0.70f, 0.29f)), glowAlpha);
         public Color CropGlow     => WithAlpha(Parse(cropGlowColor, new Color(1f, 0.84f, 0.42f)), cropGlowAlpha);
         public Color WarmEarthTint => Parse(warmEarthTint, new Color(1f, 0.91f, 0.78f));
+        public Color TileUnderlayColor => Parse(tileUnderlayColor, new Color(0.10f, 0.07f, 0.03f));
 
         /// <summary>Parse "#RRGGBB" or "#RRGGBBAA" → Color. Falls back on any malformed input.
         /// Hand-rolled (not ColorUtility) so it compiles identically under the headless CLR harness.</summary>

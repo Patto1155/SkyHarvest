@@ -4,6 +4,14 @@
 // tile and optional child overlay sprites for tilled/wet/dry soil state.
 // Spring cells get a SpriteAnimator cycling through their 3 strip frames.
 // All sprite loading goes through SpriteLoader (UI/bootstrap agent owns it).
+//
+// Session 6 additions — procedural autotile terrain blending:
+//   • Dark-earth underlay diamond (slightly oversized) under each tile to seal
+//     sky-gap seams between tiles.
+//   • 8-neighbour bitmask feather overlays at terrain type boundaries so terrain
+//     types fade into each other instead of hard-cutting (TerrainAutotiler).
+//   • RenderNewCells also refreshes blend overlays for all 8 neighbours of each
+//     new cell so existing border cells update correctly.
 using System.Collections.Generic;
 using UnityEngine;
 using SkyHarvest.Core;
@@ -20,6 +28,10 @@ namespace SkyHarvest.Island
         private IslandData? _island;
         private readonly Dictionary<Vector2Int, CellVisuals> _visuals = new();
 
+        // Shared underlay sprite — all cells use the same texture to save memory.
+        // Lazily created on first Render().
+        private Sprite? _underlaySprite;
+
         // -------------------------------------------------------------------------
         // Public API
         // -------------------------------------------------------------------------
@@ -33,17 +45,54 @@ namespace SkyHarvest.Island
             _island = island;
             DestroyAll();
 
+            // Build underlay sprite once at Render time using current config.
+            var cfg = VisualConfig.Current;
+            _underlaySprite = ProcGfx.IsoDiamondUnderlay(
+                cfg.TileUnderlayColor,
+                w: 68, h: 34,
+                scaleUp: cfg.tileUnderlayScale);
+
             foreach (var kvp in island.Cells)
                 BuildCellVisuals(kvp.Value);
+
+            // After all cells exist, compute + attach blend feathers for every cell.
+            RefreshAllBlendOverlays();
         }
 
         /// <summary>
         /// Add visuals for cells added at runtime via <see cref="IslandExpansion.Expand"/>.
+        /// Also refreshes blend overlays for all 8 neighbours of each new cell so
+        /// existing border tiles update their feathers correctly.
         /// </summary>
         public void RenderNewCells(IEnumerable<IslandCell> newCells)
         {
+            if (_island == null) return;
+
+            // Ensure underlay sprite exists (may not if Render was never called, e.g. first boot)
+            if (_underlaySprite == null)
+            {
+                var cfg = VisualConfig.Current;
+                _underlaySprite = ProcGfx.IsoDiamondUnderlay(
+                    cfg.TileUnderlayColor,
+                    w: 68, h: 34,
+                    scaleUp: cfg.tileUnderlayScale);
+            }
+
+            var newPositions = new List<Vector2Int>();
             foreach (var cell in newCells)
+            {
                 BuildCellVisuals(cell);
+                newPositions.Add(cell.GridPos);
+            }
+
+            // Refresh blend overlays for every newly added cell and all their neighbours
+            var toRefresh = new HashSet<Vector2Int>();
+            foreach (var pos in newPositions)
+                foreach (var affected in TerrainAutotiler.AffectedPositions(pos))
+                    toRefresh.Add(affected);
+
+            foreach (var pos in toRefresh)
+                RefreshBlendOverlaysForCell(pos);
         }
 
         /// <summary>
@@ -72,6 +121,16 @@ namespace SkyHarvest.Island
             var go = new GameObject($"Cell_{cell.GridPos.x}_{cell.GridPos.y}");
             go.transform.SetParent(transform);
             go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
+
+            // ---- dark-earth underlay (seam sealer) ----
+            // Sorting order well BELOW terrain (-11000) so it sits under the tile.
+            var underlayGo = new GameObject("Underlay");
+            underlayGo.transform.SetParent(go.transform);
+            underlayGo.transform.localPosition = Vector3.zero;
+            var underlaySr = underlayGo.AddComponent<SpriteRenderer>();
+            underlaySr.sortingOrder = sortBase - 1000;   // -10000-1000 = -11000
+            underlaySr.sprite = _underlaySprite;
+            // No tint — pure dark fill.
 
             // ---- terrain SpriteRenderer ----
             var sr = go.AddComponent<SpriteRenderer>();
@@ -109,11 +168,18 @@ namespace SkyHarvest.Island
             overlaySr.sortingOrder = sortBase + 5000;   // -10000+5000 = -5000 (flat overlay layer)
             overlaySr.enabled = false;                  // hidden until tilled
 
+            // ---- blend overlay container (children added by RefreshBlendOverlaysForCell) ----
+            var blendRoot = new GameObject("BlendOverlays");
+            blendRoot.transform.SetParent(go.transform);
+            blendRoot.transform.localPosition = Vector3.zero;
+
             var vis = new CellVisuals
             {
-                Root      = go,
-                Tile      = sr,
-                Overlay   = overlaySr
+                Root       = go,
+                Tile       = sr,
+                Overlay    = overlaySr,
+                BlendRoot  = blendRoot,
+                SortBase   = sortBase,
             };
             _visuals[cell.GridPos] = vis;
             UpdateOverlay(vis, cell);
@@ -140,6 +206,74 @@ namespace SkyHarvest.Island
             Sprite? sp = TryLoadTileSprite(overlayPath);
             vis.Overlay.sprite  = sp ?? MagentaFallback();
             vis.Overlay.enabled = true;
+        }
+
+        // ---- Autotile blend overlay management ----
+
+        private void RefreshAllBlendOverlays()
+        {
+            if (_island == null) return;
+            foreach (var pos in _visuals.Keys)
+                RefreshBlendOverlaysForCell(pos);
+        }
+
+        private void RefreshBlendOverlaysForCell(Vector2Int pos)
+        {
+            if (_island == null) return;
+            if (!_visuals.TryGetValue(pos, out var vis)) return;
+            var cell = _island.GetCell(pos);
+            if (cell == null) return;
+
+            // Destroy existing blend overlay children
+            var blendRoot = vis.BlendRoot;
+            int childCount = blendRoot.transform.childCount;
+            for (int i = childCount - 1; i >= 0; i--)
+            {
+                var child = blendRoot.transform.GetChild(i);
+                Destroy(child.gameObject);
+            }
+
+            var blendInfo = TerrainAutotiler.Compute(cell, _island);
+            if (!blendInfo.HasAnyBlend) return;
+
+            var cfg = VisualConfig.Current;
+            float masterAlpha = cfg.blendFeatherAlpha;
+            float falloff     = cfg.blendFeatherFalloff;
+
+            // Blend overlays sort just ABOVE the terrain tile (-10000 + 500 = -9500)
+            int blendSortBase = vis.SortBase + 500;
+
+            for (int i = 0; i < blendInfo.Samples.Count; i++)
+            {
+                var sample = blendInfo.Samples[i];
+
+                // Tint: lerp between the cell's own terrain colour and the neighbour's colour.
+                // If the neighbour is absent (off-island), blend toward a very dark edge colour.
+                Color neighbourColor = sample.NeighbourTerrain.HasValue
+                    ? TerrainBlendColor(sample.NeighbourTerrain.Value)
+                    : new Color(0.05f, 0.04f, 0.02f, 1f);
+
+                Color featherColor = new Color(
+                    neighbourColor.r,
+                    neighbourColor.g,
+                    neighbourColor.b,
+                    masterAlpha * sample.Weight);
+
+                var featherSprite = ProcGfx.IsoEdgeFeather(
+                    featherColor,
+                    sample.WorldDirection,
+                    w: 64, h: 32,
+                    falloff: falloff);
+
+                var featherGo = new GameObject($"Blend_{i}");
+                featherGo.transform.SetParent(blendRoot.transform);
+                featherGo.transform.localPosition = Vector3.zero;
+
+                var featherSr = featherGo.AddComponent<SpriteRenderer>();
+                featherSr.sprite = featherSprite;
+                featherSr.sortingOrder = blendSortBase + i;
+                featherSr.color = Color.white; // colour is baked into the texture
+            }
         }
 
         private void DestroyAll()
@@ -193,6 +327,21 @@ namespace SkyHarvest.Island
             return Color.Lerp(Color.white, cfg.WarmEarthTint, strength);
         }
 
+        /// <summary>
+        /// Base blend colour for terrain transitions (mid-tone between the two terrain palettes).
+        /// These are representative mid-tones of each terrain's visual palette.
+        /// </summary>
+        private static Color TerrainBlendColor(TerrainType terrain) => terrain switch
+        {
+            TerrainType.FertileValley => new Color(0.45f, 0.60f, 0.28f),   // warm green
+            TerrainType.RockyPlateau  => new Color(0.52f, 0.47f, 0.38f),   // dusty stone
+            TerrainType.CliffEdge     => new Color(0.35f, 0.30f, 0.25f),   // dark stone
+            TerrainType.NaturalSpring => new Color(0.35f, 0.55f, 0.65f),   // cool aqua
+            TerrainType.WindCorridor  => new Color(0.55f, 0.53f, 0.42f),   // pale straw
+            TerrainType.Scaffold      => new Color(0.48f, 0.36f, 0.20f),   // timber
+            _                         => new Color(0.40f, 0.38f, 0.30f),
+        };
+
         private static Sprite MagentaFallback()
         {
             // 1×1 magenta texture — harness-safe null fallback
@@ -215,9 +364,11 @@ namespace SkyHarvest.Island
         // -------------------------------------------------------------------------
         private class CellVisuals
         {
-            public GameObject Root    = null!;
-            public SpriteRenderer Tile    = null!;
+            public GameObject Root      = null!;
+            public SpriteRenderer Tile  = null!;
             public SpriteRenderer Overlay = null!;
+            public GameObject BlendRoot = null!;
+            public int SortBase;
         }
     }
 }
