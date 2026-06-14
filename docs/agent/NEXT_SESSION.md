@@ -24,14 +24,18 @@ glow, golden ripe-crop glow + sway, avatar shadow, compact ~4×3 starter island 
   birds on ClearSkies, rain patter on LightRain) + soft chimes for workshop-done / crop-ripe.
   Spec §5: the island communicates via audio. 2–3 free CC0 loops would transform the feel.
 
-## 3. The debris → skynet → expansion loop (gameplay, Patrick is keen)
+## 3. The debris → skynet → expansion loop (gameplay) — ✅ DONE (session 5)
 
-- Spec §3 (`specs/2026-03-17-sky-harvest-design.md`): debris lands on cliff edges; a craftable
-  **Skynet** passively catches drifting debris ("checked like a mailbox"); debris + scaffolding
-  EXPAND the island outward. Code already has `IslandExpansion.Expand`, `DebrisSpawner`, a
-  `Skynet` structure + save fields. Audit what's wired vs stubbed and close the loop: debris
-  visibly lands → scavenge → build/feed a skynet → scaffold a new cell. This is the "start small,
-  grow outward" payoff the compact 4×3 island sets up.
+- ~~Spec §3: debris lands on cliff edges; craftable **Skynet** passively catches debris ("checked
+  like a mailbox"); debris + scaffolding EXPAND the island outward.~~ **CLOSED on `feat/debris-loop`.**
+  Audit found the chain was already wired end-to-end; fixed two real defects: (1) Skynet offline
+  accrual was dead (`InitializeOfflineAccrual` had no real caller — only the verify harness) → wired
+  into save-restore, math extracted to pure tested `SkynetAccrual`; (2) `IslandExpandedEvent`
+  double-fired → removed the `BuildModeController` duplicate. Proven 20/20 in Play mode
+  (`tools/verify.sh`) + 11 new unit tests. See START_HERE session-5 notes.
+- **Follow-on backlog (not built):** debris/skynet/expansion have no audio cue of their own beyond
+  the scavenge tone; expansion has no "scaffold cost scales with island size" balancing; Skynet
+  tiers 2–4 are deferred by design (spec §12). Depth/cliff-side art (task 1) still the big visual gap.
 
 ## 4. Leftover scope items (small)
 

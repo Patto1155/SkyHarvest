@@ -224,11 +224,10 @@ namespace SkyHarvest.Building
             {
                 var expansion = Island.IslandExpansion.Expand(_island, gridPos);
 
-                // Re-render newly added cells via IslandRenderer (world agent owns this)
+                // Re-render newly added cells via IslandRenderer (world agent owns this).
+                // IslandExpansion.Expand already publishes IslandExpandedEvent — do not double-fire.
                 var islandRenderer = Object.FindObjectOfType<Island.IslandRenderer>();
                 if (islandRenderer != null) islandRenderer.RenderNewCells(expansion);
-
-                EventBus.Publish(new IslandExpandedEvent { NewCellCount = expansion.Count });
             }
 
             EventBus.Publish(new StructurePlacedEvent { StructureId = def.StructureId });

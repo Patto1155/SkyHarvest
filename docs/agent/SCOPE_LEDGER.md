@@ -1,3 +1,18 @@
+# Scope-gap ledger — design spec + MVP plan vs. code (2026-06-14)
+
+> **Session 5 (2026-06-14, `feat/debris-loop`) — debris → skynet → expansion loop audited + closed.**
+> The whole chain was already wired and is now **live-verified in Play mode** (PlayModeVerify,
+> 20/20 PASS incl. new expansion + skynet-accrual checks). Two real defects found and fixed:
+> - **G13 — Skynet offline accrual was DEAD** (`InitializeOfflineAccrual` had zero runtime callers;
+>   only the verify harness called it directly, which is *why it falsely "passed" before*). The
+>   spec's "checked like a mailbox" catch-up never ran in a real game. Now wired into the save-restore
+>   path (`Bootstrap.RestoreIslandContents`). Math extracted to pure, tested `SkynetAccrual.OfflineRollCount`.
+> - **G14 — `IslandExpandedEvent` double-published** by both `IslandExpansion.Expand` *and*
+>   `BuildModeController.PlaceStructure` (the latter could also fire a bogus 0-count event). Removed
+>   the controller duplicate; `Expand` is the canonical publisher. Verified `fired=1`.
+> New coverage: `ExpansionTests` (4) + `SkynetAccrualTests` (7) → 103 NUnit; new `PlayModeVerify`
+> expansion step; new `tools/verify.sh` launcher.
+
 # Scope-gap ledger — design spec + MVP plan vs. code (2026-06-13)
 
 Sources: `docs/superpowers/specs/2026-03-17-sky-harvest-design.md` (§12 MVP scope),

@@ -84,10 +84,7 @@ namespace SkyHarvest.Skynet
             LastCollectedUnixTime = lastCollectedUnixTime;
 
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            long elapsed = now - lastCollectedUnixTime;
-            if (elapsed <= 0) return;
-
-            int rolls = (int)Math.Min(Math.Floor((double)elapsed / OfflineRollPeriod), MaxBufferStacks);
+            int rolls = SkynetAccrual.OfflineRollCount(now - lastCollectedUnixTime, OfflineRollPeriod, MaxBufferStacks);
             for (int i = 0; i < rolls; i++)
                 TryAccrue();
         }

@@ -390,6 +390,8 @@ namespace SkyHarvest.Core
                         if (!string.IsNullOrEmpty(slot.ItemId) && slot.Count > 0)
                             buffer.Add((slot.ItemId, slot.Count));
                     skynet.RestoreFromSave(snd.LastCollectedUnixTime, buffer);
+                    // "Checked like a mailbox": credit catches accrued while away (spec §3).
+                    skynet.InitializeOfflineAccrual(snd.LastCollectedUnixTime);
                 }
             }
 

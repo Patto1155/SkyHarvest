@@ -11,6 +11,24 @@ Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliatio
 
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
+## Current state (2026-06-14, session 5 — debris → skynet → expansion loop)
+
+- **Session 5 (branch `feat/debris-loop`):** audited and closed the debris → skynet →
+  island-expansion payoff loop (NEXT_SESSION #3). The chain was **already wired** end-to-end
+  (debris spawns every 45s on rim cells → falls → E-scavenge → loot; Forge recipe
+  `scrap→skynet_frame`; build menu lists scaffolding/skynet/forge; scaffolding→`Expand`→
+  `RenderNewCells`; skynet→live accrual→save/restore). Audit found **two real defects, both fixed:**
+  - **Skynet offline accrual was DEAD** — `InitializeOfflineAccrual` had zero runtime callers (only
+    the verify harness called it directly, which is exactly why it falsely "passed" before). The
+    "checked like a mailbox" catch-up never ran in a real game. Now wired into the save-restore path
+    (`Bootstrap.RestoreIslandContents`); math extracted to pure, tested `SkynetAccrual`.
+  - **`IslandExpandedEvent` was double-published** (both `IslandExpansion.Expand` and
+    `BuildModeController.PlaceStructure`). Removed the controller duplicate.
+  - Proven **live in Play mode**: new `PlayModeVerify` expansion step (`newCells=2, fired=1`) +
+    existing skynet/debris steps → **20/20 PASS**. New launcher `tools/verify.sh`.
+  - Validated green: **103 EditMode + 103 NUnit** (11 new: `ExpansionTests`, `SkynetAccrualTests`),
+    Unity compile clean.
+
 ## Current state (2026-06-13, session 4 — unified hotbar)
 
 - **Session 4 (branch `feat/scope-cleanup`):** closed G6 with a **unified Stardew-style hotbar** —

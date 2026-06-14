@@ -44,6 +44,7 @@ public static class PlayModeVerify
     private static SkyHarvest.Workshop.WorkshopBase _mill;
     private static bool _cropHarvested;
     private static bool _debrisScavenged;
+    private static int _islandExpandedCount;
     private static Vector2Int _sitePos;
 
     public static void Run()
@@ -87,6 +88,7 @@ public static class PlayModeVerify
         Add(400, "Workshop: place mill, start recipe, process, collect", StepWorkshop);
         Add(440, "Storage: place crate, open UI, transfer item", StepStorage);
         Add(470, "Skynet: place on cliff edge, offline accrual, collect", StepSkynet);
+        Add(485, "Expansion: scaffold an edge cell → island grows outward", StepExpansion);
         Add(500, "Debris: spawn, land, scavenge", StepDebrisSpawn);
         Add(700, "Debris: scavenge after landing", StepDebrisScavenge);
         Add(720, "Weather: force HeavyStorm, effects active", StepWeather);
@@ -144,6 +146,7 @@ public static class PlayModeVerify
         inv.TryAdd("iron_ore", 10); inv.TryAdd("wheat_seed", 5); inv.TryAdd("wheat", 6);
         EventBus.Subscribe<CropHarvestedEvent>(_ => _cropHarvested = true);
         EventBus.Subscribe<DebrisScavengedEvent>(_ => _debrisScavenged = true);
+        EventBus.Subscribe<IslandExpandedEvent>(_ => _islandExpandedCount++);
         Pass("Setup", "player + island live; materials granted");
     }
 
@@ -305,6 +308,45 @@ public static class PlayModeVerify
         net.Interact(_player);
         bool emptied = net.GetBufferContents().Count == 0;
         Check("Skynet offline accrual + collect", accrued && emptied, $"accrued={accrued}, collected={emptied}");
+    }
+
+    private static void StepExpansion()
+    {
+        // The payoff: scaffolding an outer edge cell grows the island outward.
+        // Pick a structure-free edge cell that has at least one EMPTY orthogonal
+        // neighbour, so Expand actually creates new Scaffold cells.
+        var edge = FindCell(c =>
+            c.IsEdge &&
+            !StructureRegistry.Instance.HasStructureAt(c.GridPos) &&
+            HasEmptyNeighbour(c.GridPos));
+        if (edge == null) { Fail("Expansion", "no free edge cell with an empty neighbour"); return; }
+
+        int before = _island.Cells.Count;
+        int firesBefore = _islandExpandedCount;
+
+        BuildModeController.Instance.PlaceStructure(edge.GridPos, GameDatabase.GetStructure("scaffolding"));
+
+        int grown = _island.Cells.Count - before;
+        bool anyScaffold = false;
+        foreach (var off in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0),
+                                    new Vector2Int(0, 1), new Vector2Int(0, -1) })
+        {
+            var n = _island.GetCell(edge.GridPos + off);
+            if (n != null && n.Terrain == TerrainType.Scaffold) { anyScaffold = true; break; }
+        }
+        int fires = _islandExpandedCount - firesBefore;
+
+        Check("Island expansion (scaffold → new cells)",
+            grown > 0 && anyScaffold && fires == 1,
+            $"newCells={grown}, scaffoldTerrain={anyScaffold}, IslandExpandedEvent fired={fires} (expect 1)");
+    }
+
+    private static bool HasEmptyNeighbour(Vector2Int pos)
+    {
+        foreach (var off in new[] { new Vector2Int(1, 0), new Vector2Int(-1, 0),
+                                    new Vector2Int(0, 1), new Vector2Int(0, -1) })
+            if (!_island.IsValidPosition(pos + off)) return true;
+        return false;
     }
 
     private static void StepDebrisSpawn()
