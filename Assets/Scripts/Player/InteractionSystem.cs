@@ -56,10 +56,27 @@ namespace SkyHarvest.Player
                 _player?.PlayActionAnimation();
                 CurrentTarget.Interact(_player!);
             }
-            else
+            else if (!TryCarveStairs())
             {
                 TryTillFacingCell();
             }
+        }
+
+        // -----------------------------------------------------------------------
+        // Tutorial mining — carve the staircase the player is facing, unlocking
+        // traversal to the raised tier. One-shot; idempotent via IslandData.
+        // -----------------------------------------------------------------------
+        private bool TryCarveStairs()
+        {
+            var island = _player?.Island;
+            if (island == null || island.StairsCarved) return false;
+
+            var cur = SkyHarvest.Core.GridMath.WorldToGrid(_player!.transform.position, _player.CurrentTier);
+            if (!island.IsStairEdge(cur, _player.CurrentFacingCell)) return false;
+
+            island.CarveStairs(cur);
+            _player.PlayActionAnimation();
+            return true;
         }
 
         // -----------------------------------------------------------------------

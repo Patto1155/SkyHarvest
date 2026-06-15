@@ -18,6 +18,12 @@ namespace SkyHarvest.Player
         // ---- references set by Bootstrap ----
         public IslandData? Island { get; set; }
 
+        /// <summary>The elevation tier the player is currently standing on (0 = lower
+        /// farm, 1 = raised forge). Movement and cell lookups are resolved against this
+        /// tier so the raised platform and the void between tiers are handled correctly.
+        /// Crossing tiers only happens across a carved stair edge.</summary>
+        public int CurrentTier { get; set; }
+
         // ---- sprite animator (assigned by Bootstrap or Awake) ----
         private SpriteAnimator? _spriteAnimator;
 
@@ -44,7 +50,7 @@ namespace SkyHarvest.Player
         {
             get
             {
-                Vector2Int gridPos = Core.GridMath.WorldToGrid(transform.position);
+                Vector2Int gridPos = Core.GridMath.WorldToGrid(transform.position, CurrentTier);
                 return gridPos + FacingOffset();
             }
         }
@@ -87,24 +93,24 @@ namespace SkyHarvest.Player
             // Dimetric mapping: Horizontal input maps to gx-gy direction,
             // Vertical maps to gx+gy direction.  Move in world-space 2D.
             Vector2 dir = new Vector2(h * 0.5f, v * 0.25f).normalized;
-            Vector2 candidate = (Vector2)transform.position + dir * _moveSpeed * Time.deltaTime;
+            Vector2 from = transform.position;
+            float step = _moveSpeed * Time.deltaTime;
+            Vector2 candidate = from + dir * step;
 
-            // Clamp to valid island cell
+            // Tier-aware clamp: a step is allowed only if the destination cell exists
+            // and CanTraverse permits it (same tier, or a carved stair edge). This blocks
+            // walking out over the void AND climbing the cliff before the stairs are mined.
             if (Island != null)
             {
-                Vector2Int targetCell = Core.GridMath.WorldToGrid(candidate);
-                if (!Island.IsWalkable(targetCell))
+                Vector2Int fromCell = Core.GridMath.WorldToGrid(from, CurrentTier);
+                if (!TryStep(from, candidate, fromCell, out candidate))
                 {
-                    // Try each axis independently (slide along walls)
-                    Vector2 candidateX = (Vector2)transform.position + new Vector2(dir.x, 0f) * _moveSpeed * Time.deltaTime;
-                    Vector2 candidateY = (Vector2)transform.position + new Vector2(0f, dir.y) * _moveSpeed * Time.deltaTime;
-
-                    if (Island.IsWalkable(Core.GridMath.WorldToGrid(candidateX)))
-                        candidate = candidateX;
-                    else if (Island.IsWalkable(Core.GridMath.WorldToGrid(candidateY)))
-                        candidate = candidateY;
-                    else
-                        candidate = transform.position;   // fully blocked
+                    // Slide along whichever single axis is still walkable.
+                    Vector2 cx = from + new Vector2(dir.x, 0f) * step;
+                    Vector2 cy = from + new Vector2(0f, dir.y) * step;
+                    if (TryStep(from, cx, fromCell, out var rx))      candidate = rx;
+                    else if (TryStep(from, cy, fromCell, out var ry)) candidate = ry;
+                    else                                              candidate = from;   // fully blocked
                 }
             }
 
@@ -118,6 +124,30 @@ namespace SkyHarvest.Player
                 _isActing  = false;
                 SetWalkAnimation();
             }
+        }
+
+        /// <summary>
+        /// Resolve a candidate world move against the tier model. Returns false (blocked)
+        /// when the destination cell is off-island or the tier change isn't permitted.
+        /// When the step crosses a carved stair edge onto another tier, the player snaps
+        /// to that cell's centre on the new tier (and CurrentTier updates).
+        /// </summary>
+        private bool TryStep(Vector2 from, Vector2 candidate, Vector2Int fromCell, out Vector2 result)
+        {
+            result = candidate;
+            if (Island == null) return true;
+
+            Vector2Int toCell = Core.GridMath.WorldToGrid(candidate, CurrentTier);
+            if (toCell == fromCell) return true;                 // sub-cell move, same tile
+            if (!Island.CanTraverse(fromCell, toCell)) return false;
+
+            int toTier = Island.Tier(toCell);
+            if (toTier != CurrentTier)                            // climbed/descended the stairs
+            {
+                CurrentTier = toTier;
+                result = Core.GridMath.GridToWorld(toCell, toTier);
+            }
+            return true;
         }
 
         // -----------------------------------------------------------------------

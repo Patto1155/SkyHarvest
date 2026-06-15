@@ -65,10 +65,17 @@ namespace SkyHarvest.Island
 
                     bool isEdge = threshold < 0.25f;
 
-                    // Elevation (separate noise band)
+                    // Elevation noise (0..3) drives terrain CLASSIFICATION below.
                     float elevation = Mathf.PerlinNoise(
                         (x + offsetX + 500f) * elevationScale,
                         (y + offsetY + 500f) * elevationScale) * 3f;
+
+                    // RENDER elevation is decoupled from the classification value:
+                    // ElevationWorldStep is now 0.5 (chunky designed-island tiers),
+                    // so halving here keeps the procedural island's gentle undulation
+                    // identical to the old 0.25-step look (offset 0..0.75) instead of
+                    // doubling it into jagged floating tiles.
+                    float renderElevation = elevation * 0.5f;
 
                     // Terrain assignment.
                     // Cozy starter island: a predominantly FERTILE (warm earth) interior ringed
@@ -91,7 +98,7 @@ namespace SkyHarvest.Island
                     {
                         GridPos   = pos,
                         Terrain   = terrain,
-                        Elevation = elevation,
+                        Elevation = renderElevation,
                         Soil      = new SoilState(terrain),
                         IsEdge    = isEdge
                     };

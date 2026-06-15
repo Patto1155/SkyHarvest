@@ -57,16 +57,19 @@ namespace SkyHarvest.Core
                 cgo.transform.SetParent(transform, false);
                 float scaleX = 3f + (float)rng.NextDouble() * 4f;   // wide wispy puffs
                 float scaleY = scaleX * 0.45f;
-                // Spread across the upper 2/3 of the sky.
+                // Spread across the band the camera actually sees (ortho size ~6 → view
+                // is ~±6 tall). The old range put most clouds 8-11 units up, off-screen,
+                // which is why the sky read as an empty void.
                 float px = (float)(rng.NextDouble() * SkyWidth - SkyWidth / 2f);
-                float py = (float)(rng.NextDouble() * (SkyHeight * 0.4f) + SkyHeight * 0.08f);
+                float py = (float)(rng.NextDouble() * 10f - 3f);    // ~ -3 .. +7, biased to the sky
                 cgo.transform.localPosition = new Vector3(px, py, -1f);
                 cgo.transform.localScale = new Vector3(scaleX, scaleY, 1f);
                 var csr = cgo.AddComponent<SpriteRenderer>();
                 csr.sprite = cloudSprite;
-                // cloudAlpha was read from visual.json but never applied — clouds were invisible.
-                // SoftDisc bakes the cloud colour + a soft radial falloff; this scales overall opacity.
-                csr.color = new Color(1f, 1f, 1f, Mathf.Clamp01(cfg.cloudAlpha));
+                // Opacity is baked once into the SoftDisc via CloudColor's alpha (cloudAlpha)
+                // + a radial falloff. Tinting white here (alpha 1) avoids the double-alpha
+                // that made the surviving clouds nearly invisible.
+                csr.color = Color.white;
                 csr.sortingOrder = CloudSortingOrder + i;
                 _clouds[i] = new Cloud
                 {

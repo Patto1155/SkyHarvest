@@ -164,5 +164,61 @@ namespace SkyHarvest.Core
             // Pivot (0.5, 0) = bottom tip, matching terrain tile convention
             return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0f), Constants.PixelsPerUnit);
         }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Two-tier cliff wall
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// One directional cliff face on a single diamond edge — the wall between a
+        /// raised tile and the lower tile on one of its two camera-facing sides.
+        /// <paramref name="rightSide"/> false = the down-LEFT (SW) edge toward the +y
+        /// neighbour; true = the down-RIGHT (SE) edge toward the +x neighbour.
+        ///
+        /// The face is a parallelogram: its top edge is the diamond's lower edge
+        /// (sloping half a tile over the half-width) and it extrudes straight down by
+        /// <paramref name="faceHeightPx"/> = ElevationWorldStep × PixelsPerUnit, which
+        /// makes it land exactly on the neighbouring lower tile's matching edge.
+        /// Pivot is the cell centre: (1,1) top-right for SW, (0,1) top-left for SE.
+        /// </summary>
+        public static Sprite IsoTierFace(Color faceTop, Color faceBottom, int faceHeightPx, bool stair, bool rightSide)
+        {
+            const int half = 16;                  // half-height of the 64×32 tile diamond
+            const int halfW = 32;                 // half-width  of the diamond (one edge span)
+            int H = half + faceHeightPx;
+            var tex = new Texture2D(halfW, H, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point
+            };
+            var px = new Color[halfW * H];
+            for (int i = 0; i < px.Length; i++) px[i] = Color.clear;
+
+            for (int x = 0; x < halfW; x++)
+            {
+                float frac = (float)x / (halfW - 1);                 // 0..1 across the half
+                // Top-edge depth: 0 at the side corner, `half` at the bottom tip.
+                float dTop = (rightSide ? (1f - frac) : frac) * half;
+                for (int b = 0; b < faceHeightPx; b++)
+                {
+                    int yTex = (H - 1) - Mathf.RoundToInt(dTop + b);
+                    if (yTex < 0 || yTex >= H) continue;
+                    float t = (float)b / Mathf.Max(1, faceHeightPx - 1);   // 0 top → 1 bottom
+                    Color c = Color.Lerp(faceTop, faceBottom, t);
+                    if (stair)
+                    {
+                        int stepH = Mathf.Max(4, faceHeightPx / 5);
+                        int within = b % stepH;
+                        if (within == 0)              c = Color.Lerp(c, Color.white, 0.30f);  // tread catch-light
+                        else if (within == stepH - 1) c = Color.Lerp(c, Color.black, 0.40f);  // riser shadow
+                    }
+                    px[yTex * halfW + x] = c;
+                }
+            }
+            tex.SetPixels(px);
+            tex.Apply();
+            var pivot = rightSide ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
+            return Sprite.Create(tex, new Rect(0, 0, halfW, H), pivot, Constants.PixelsPerUnit);
+        }
     }
 }

@@ -32,6 +32,11 @@ namespace SkyHarvest.Island
         // Lazily created on first Render().
         private Sprite? _underlaySprite;
 
+        // Shared two-tier cliff-face sprites, keyed by (stair, rightSide). A face is
+        // drawn on each diamond edge whose camera-facing neighbour is a lower tier:
+        // +y (0,1) = the down-LEFT (SW) edge, +x (1,0) = the down-RIGHT (SE) edge.
+        private readonly Dictionary<(bool stair, bool right), Sprite> _faceSprites = new();
+
         // -------------------------------------------------------------------------
         // Public API
         // -------------------------------------------------------------------------
@@ -57,6 +62,66 @@ namespace SkyHarvest.Island
 
             // After all cells exist, compute + attach blend feathers for every cell.
             RefreshAllBlendOverlays();
+
+            // Two-tier cliff walls (raised forge tier dropping to the lower farm).
+            BuildTierWalls();
+        }
+
+        // ---- Two-tier cliff walls ----
+
+        /// <summary>
+        /// Draw a cliff face on each diamond edge whose camera-facing neighbour is a
+        /// lower tier, so the raised tier connects down to the lower one edge-to-edge.
+        /// The high side of a registered stair edge gets the carved-stair face.
+        /// </summary>
+        private void BuildTierWalls()
+        {
+            if (_island == null) return;
+
+            foreach (var kvp in _island.Cells)
+            {
+                var cell = kvp.Value;
+                Vector2Int pos = cell.GridPos;
+                int myTier = _island.Tier(pos);
+
+                // Down-LEFT (SW) edge toward the +y neighbour.
+                var sw = pos + new Vector2Int(0, 1);
+                if (_island.IsValidPosition(sw) && myTier > _island.Tier(sw))
+                    AddTierFace(cell, stair: _island.IsStairEdge(pos, sw), rightSide: false);
+
+                // Down-RIGHT (SE) edge toward the +x neighbour.
+                var se = pos + new Vector2Int(1, 0);
+                if (_island.IsValidPosition(se) && myTier > _island.Tier(se))
+                    AddTierFace(cell, stair: _island.IsStairEdge(pos, se), rightSide: true);
+            }
+        }
+
+        private Sprite FaceSprite(bool stair, bool rightSide)
+        {
+            var key = (stair, rightSide);
+            if (_faceSprites.TryGetValue(key, out var sp)) return sp;
+
+            int faceH = Mathf.RoundToInt(Constants.ElevationWorldStep * Constants.PixelsPerUnit);
+            sp = stair
+                ? ProcGfx.IsoTierFace(new Color(0.54f, 0.46f, 0.35f), new Color(0.27f, 0.22f, 0.18f), faceH, true,  rightSide)
+                : ProcGfx.IsoTierFace(new Color(0.40f, 0.37f, 0.34f), new Color(0.19f, 0.17f, 0.16f), faceH, false, rightSide);
+            _faceSprites[key] = sp;
+            return sp;
+        }
+
+        private void AddTierFace(IslandCell cell, bool stair, bool rightSide)
+        {
+            if (!_visuals.TryGetValue(cell.GridPos, out var vis)) return;
+
+            var go = new GameObject(stair ? "StairFace" : "WallFace");
+            go.transform.SetParent(vis.Root.transform);
+            go.transform.localPosition = Vector3.zero;
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = FaceSprite(stair, rightSide);
+            // Just above this (raised) tile; lower-tier tiles keep a higher sort and
+            // occlude where they genuinely sit in front.
+            sr.sortingOrder = vis.SortBase + 1;
         }
 
         /// <summary>

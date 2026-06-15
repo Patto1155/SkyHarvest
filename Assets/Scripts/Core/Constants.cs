@@ -28,7 +28,7 @@ namespace SkyHarvest.Core
         // Rendering (2:1 dimetric sprite projection)
         public const float TileWorldWidth = 1f;
         public const float TileWorldHeight = 0.5f;
-        public const float ElevationWorldStep = 0.25f;
+        public const float ElevationWorldStep = 0.5f;
         public const int PixelsPerUnit = 64;
         public const int SortingOrderScale = 100;
 

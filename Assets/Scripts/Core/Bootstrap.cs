@@ -273,13 +273,17 @@ namespace SkyHarvest.Core
         private void StartNewGame()
         {
             int seed = PlayerPrefs.HasKey("IslandSeed") ? PlayerPrefs.GetInt("IslandSeed") : Random.Range(0, 999999);
-            // Starting island size comes from visual.json (cozy compact ~4×3 core). Falls back to the constant.
-            int radius = Mathf.Max(2, VisualConfig.Current.islandRadius);
-            var island = IslandGenerator.Generate(seed, radius);
+            // Designed hero starter: a fixed two-tier 3×4 island (lower farm + raised
+            // forge), connected by the staircase the player mines in the tutorial.
+            // Replaces the old procedural diamond (IslandGenerator) as the starting piece.
+            var island = StarterIsland.Build(seed);
             _gm?.SetIsland(island);
             _islandRenderer?.Render(island);
 
-            SpawnPlayer(Vector3.zero);
+            // Spawn on the front farm tier (centre of the lower block), not world origin
+            // (which is a back-tier cell on the designed island).
+            Vector2 spawn = GridMath.GridToWorld(new Vector2Int(1, 3));
+            SpawnPlayer(new Vector3(spawn.x, spawn.y, 0f));
             if (_player != null) _player.Island = island;
             WireUIToPlayer();
             WireBuildMode(island);

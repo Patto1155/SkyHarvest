@@ -99,10 +99,14 @@ namespace SkyHarvest.Building
 
             Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mouseWorld.z = 0f;
-            _ghostGridPos = GridMath.WorldToGrid(new Vector2(mouseWorld.x, mouseWorld.y));
+            // Resolve the mouse against the player's tier so the cursor maps to cells on
+            // the tier you're standing on, and snap the ghost to that cell's real
+            // elevation (so it reads as sitting ON the tier, not flat across the gap).
+            int tier = _player != null ? _player.CurrentTier : 0;
+            _ghostGridPos = GridMath.WorldToGrid(new Vector2(mouseWorld.x, mouseWorld.y), tier);
 
-            // Snap ghost to grid cell world position
-            var worldPos = GridMath.GridToWorld(_ghostGridPos);
+            float gElev = _island?.GetCell(_ghostGridPos)?.Elevation ?? 0f;
+            var worldPos = GridMath.GridToWorld(_ghostGridPos, gElev);
             _ghostGo.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
 
             _ghostValid = CanPlaceAt(_ghostGridPos);
@@ -115,6 +119,8 @@ namespace SkyHarvest.Building
             if (_island == null) return false;
             var cell = _island.GetCell(gridPos);
             if (cell == null) return false;
+            // Don't bridge the cliff: build only on the tier the player stands on.
+            if (_player != null && Mathf.RoundToInt(cell.Elevation) != _player.CurrentTier) return false;
             if (StructureRegistry.Instance != null && StructureRegistry.Instance.HasStructureAt(gridPos))
                 return false;
 
@@ -182,7 +188,8 @@ namespace SkyHarvest.Building
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = LoadStructureSprite(def) ?? MakeFallbackSprite(Color.magenta);
 
-            var worldPos = GridMath.GridToWorld(gridPos);
+            float elev = _island?.GetCell(gridPos)?.Elevation ?? 0f;
+            var worldPos = GridMath.GridToWorld(gridPos, elev);
             go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
             sr.sortingOrder = Mathf.RoundToInt(-worldPos.y * Constants.SortingOrderScale);
 
@@ -204,8 +211,9 @@ namespace SkyHarvest.Building
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = MakeFallbackSprite(Color.magenta); // will be overridden if art loads
 
-            // Position in world space (dimetric)
-            var worldPos = GridMath.GridToWorld(gridPos);
+            // Position in world space (dimetric), at the cell's tier elevation.
+            float elev = _island?.GetCell(gridPos)?.Elevation ?? 0f;
+            var worldPos = GridMath.GridToWorld(gridPos, elev);
             go.transform.position = new Vector3(worldPos.x, worldPos.y, 0f);
 
             // Sorting order

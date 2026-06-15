@@ -49,6 +49,11 @@ namespace SkyHarvest.Core
     public struct StructureDemolishedEvent { public string StructureId; }
     public struct IslandExpandedEvent { public int NewCellCount; }
 
+    /// <summary>Fired once when the tutorial staircase is mined, unlocking
+    /// traversal between the lower and raised tiers. StairCell is the lower-tier
+    /// cell the player mines into.</summary>
+    public struct StairsCarvedEvent { public int StairX; public int StairY; }
+
     // ---- Player ----
     public struct ToolEquippedEvent { public int SlotIndex; }
     public struct InventoryChangedEvent { }
