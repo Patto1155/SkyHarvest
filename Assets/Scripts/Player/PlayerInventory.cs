@@ -65,5 +65,89 @@ namespace SkyHarvest.Player
 
         public int GetCount(string itemId) =>
             Slots.Where(s => s.ItemId == itemId).Sum(s => s.Count);
+
+        /// <summary>Lift the full stack out of a slot (Terraria pick-up).</summary>
+        public (string? itemId, int count) TakeFromSlot(int index)
+        {
+            if (index < 0 || index >= Slots.Length) return (null, 0);
+            var slot = Slots[index];
+            if (slot.IsEmpty) return (null, 0);
+
+            var itemId = slot.ItemId;
+            var count  = slot.Count;
+            slot.ItemId = null;
+            slot.Count  = 0;
+            Core.EventBus.Publish(new Core.InventoryChangedEvent());
+            return (itemId, count);
+        }
+
+        /// <summary>
+        /// Place a held stack onto a slot. Merges same items; swaps when different.
+        /// Returns the stack displaced by a swap (null/0 when placement finished).
+        /// </summary>
+        public (string? itemId, int count) PlaceOnSlot(int index, string itemId, int count)
+        {
+            if (index < 0 || index >= Slots.Length || string.IsNullOrEmpty(itemId) || count <= 0)
+                return (itemId, count);
+
+            var dst = Slots[index];
+            if (dst.IsEmpty)
+            {
+                dst.ItemId = itemId;
+                dst.Count  = count;
+                Core.EventBus.Publish(new Core.InventoryChangedEvent());
+                return (null, 0);
+            }
+
+            if (dst.ItemId == itemId)
+            {
+                dst.Count += count;
+                Core.EventBus.Publish(new Core.InventoryChangedEvent());
+                return (null, 0);
+            }
+
+            var swapId    = dst.ItemId;
+            var swapCount = dst.Count;
+            dst.ItemId = itemId;
+            dst.Count  = count;
+            Core.EventBus.Publish(new Core.InventoryChangedEvent());
+            return (swapId, swapCount);
+        }
+
+        /// <summary>Move or swap stacks between two slots without using a cursor.</summary>
+        public void SwapSlots(int from, int to)
+        {
+            if (from == to || from < 0 || to < 0 || from >= Slots.Length || to >= Slots.Length)
+                return;
+
+            var a = Slots[from];
+            var b = Slots[to];
+
+            if (a.IsEmpty && b.IsEmpty) return;
+
+            if (a.IsEmpty)
+            {
+                a.ItemId = b.ItemId; a.Count = b.Count;
+                b.ItemId = null;     b.Count = 0;
+            }
+            else if (b.IsEmpty)
+            {
+                b.ItemId = a.ItemId; b.Count = a.Count;
+                a.ItemId = null;     a.Count = 0;
+            }
+            else if (a.ItemId == b.ItemId)
+            {
+                b.Count += a.Count;
+                a.ItemId = null;
+                a.Count  = 0;
+            }
+            else
+            {
+                (a.ItemId, b.ItemId) = (b.ItemId, a.ItemId);
+                (a.Count,  b.Count)  = (b.Count,  a.Count);
+            }
+
+            Core.EventBus.Publish(new Core.InventoryChangedEvent());
+        }
     }
 }

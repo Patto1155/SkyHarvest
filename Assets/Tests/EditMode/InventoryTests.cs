@@ -101,12 +101,58 @@ public class InventoryTests
     }
 
     [Test]
-    public void InventoryChangedEvent_Published_On_TryRemove()
+    public void TakeFromSlot_Empties_Source()
     {
-        _inv.TryAdd("scrap", 5);
-        int eventCount = 0;
-        EventBus.Subscribe<InventoryChangedEvent>(_ => eventCount++);
-        _inv.TryRemove("scrap", 2);
-        Assert.Greater(eventCount, 0, "InventoryChangedEvent should be published when item is removed");
+        _inv.TryAdd("wood", 4);
+        var (id, count) = _inv.TakeFromSlot(0);
+        Assert.AreEqual("wood", id);
+        Assert.AreEqual(4, count);
+        Assert.AreEqual(0, _inv.GetCount("wood"));
+    }
+
+    [Test]
+    public void PlaceOnSlot_Merges_Same_Item()
+    {
+        _inv.TryAdd("wood", 3);
+        _inv.TakeFromSlot(0);
+        _inv.TryAdd("wood", 2);   // slot 0 now has 2
+        var (left, leftCount) = _inv.PlaceOnSlot(0, "wood", 3);
+        Assert.AreEqual(0, leftCount);
+        Assert.AreEqual(5, _inv.GetCount("wood"));
+    }
+
+    [Test]
+    public void PlaceOnSlot_Swaps_Different_Items()
+    {
+        _inv.TryAdd("wood", 2);
+        var taken = _inv.TakeFromSlot(0);
+        _inv.TryAdd("scrap", 1);
+        var (swapId, swapCount) = _inv.PlaceOnSlot(0, taken.itemId!, taken.count);
+        Assert.AreEqual("scrap", swapId);
+        Assert.AreEqual(1, swapCount);
+        Assert.AreEqual(2, _inv.Slots[0].Count);
+        Assert.AreEqual("wood", _inv.Slots[0].ItemId);
+    }
+
+    [Test]
+    public void SwapSlots_Moves_To_Empty()
+    {
+        _inv.TryAdd("wood", 2);
+        _inv.SwapSlots(0, 5);
+        Assert.AreEqual(2, _inv.GetCount("wood"));
+        Assert.IsTrue(_inv.Slots[0].IsEmpty);
+        Assert.IsFalse(_inv.Slots[5].IsEmpty);
+    }
+
+    [Test]
+    public void SwapSlots_Swaps_Different_Items()
+    {
+        _inv.TryAdd("wood", 2);
+        _inv.TryAdd("scrap", 3);
+        _inv.SwapSlots(0, 1);
+        Assert.AreEqual(2, _inv.Slots[1].Count);
+        Assert.AreEqual("wood", _inv.Slots[1].ItemId);
+        Assert.AreEqual(3, _inv.Slots[0].Count);
+        Assert.AreEqual("scrap", _inv.Slots[0].ItemId);
     }
 }

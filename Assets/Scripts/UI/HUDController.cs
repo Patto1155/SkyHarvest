@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using SkyHarvest.Building;
 using SkyHarvest.Core;
+using SkyHarvest.Data;
 using SkyHarvest.Farming;
 using SkyHarvest.Player;
 
@@ -12,6 +13,9 @@ namespace SkyHarvest.UI
         private Text? _timeText;
         private Text? _weatherText;
         private Text? _interactPromptText;
+        private Text? _hotbarNameText;
+        private float _hotbarNameTimer;
+        private const float HotbarNameDuration = 1.0f;
 
         // Unified hotbar (tools + items share one bar; see Hotbar.cs).
         private GameObject[]? _hotbarSlots;
@@ -20,8 +24,8 @@ namespace SkyHarvest.UI
         private Text[]?       _hotbarCounts;
         private Hotbar?       _hotbar;
 
-        private static readonly Color SlotNormal   = new Color(0.20f, 0.18f, 0.18f, 0.90f);
-        private static readonly Color SlotSelected = new Color(0.95f, 0.80f, 0.45f, 0.95f);
+        private static readonly Color SlotNormal   = new Color(0.58f, 0.50f, 0.42f, 0.95f);
+        private static readonly Color SlotSelected = new Color(0.95f, 0.80f, 0.45f, 0.98f);
 
         private PlayerInventoryComponent? _playerInv;
         private ToolSystem? _toolSys;
@@ -36,7 +40,7 @@ namespace SkyHarvest.UI
             EventBus.Subscribe<WeatherChangedEvent>(OnWeatherChanged);
             EventBus.Subscribe<InventoryChangedEvent>(_ => RefreshHotbar());
             EventBus.Subscribe<ToolEquippedEvent>(_ => RefreshHotbar());
-            EventBus.Subscribe<HotbarSelectionChangedEvent>(_ => RefreshHotbar());
+            EventBus.Subscribe<HotbarSelectionChangedEvent>(OnHotbarSelectionChanged);
             RefreshHotbar();
         }
 
@@ -46,11 +50,16 @@ namespace SkyHarvest.UI
             EventBus.Unsubscribe<WeatherChangedEvent>(OnWeatherChanged);
         }
 
-        public void SetTimeText(Text t)     { _timeText = t; }
-        public void SetWeatherText(Text t)  { _weatherText = t; }
-        public void SetPromptText(Text t)   { _interactPromptText = t; }
+        public void SetTimeText(Text t)        { _timeText = t; }
+        public void SetWeatherText(Text t)     { _weatherText = t; }
+        public void SetPromptText(Text t)      { _interactPromptText = t; }
+        public void SetHotbarNameText(Text t)  { _hotbarNameText = t; }
 
         public void SetHotbar(Hotbar hotbar) { _hotbar = hotbar; RefreshHotbar(); }
+
+        public GameObject[]? HotbarSlotObjects => _hotbarSlots;
+
+        public void RefreshHotbarPublic() => RefreshHotbar();
 
         /// <summary>Cache the per-slot UI widgets (bg / icon / count) from the slot GameObjects.</summary>
         public void SetHotbarSlots(GameObject[] slots)
@@ -79,6 +88,20 @@ namespace SkyHarvest.UI
                 _weatherText.text = e.Current.ToString().Replace("_", " ");
         }
 
+        private void OnHotbarSelectionChanged(HotbarSelectionChangedEvent e)
+        {
+            RefreshHotbar();
+            if (_hotbarNameText == null || _hotbar == null) return;
+            var model = _hotbar.Model;
+            string name = model.IsToolSlot(e.SlotIndex)
+                ? ToolDisplayName(model.ToolAt(e.SlotIndex))
+                : ItemDisplayName(model.ItemIdAt(e.SlotIndex));
+            if (string.IsNullOrEmpty(name)) return;
+            _hotbarNameText.text  = name;
+            _hotbarNameText.color = Color.white;
+            _hotbarNameTimer      = HotbarNameDuration;
+        }
+
         private void Update()
         {
             if (_interactPromptText != null && _interactSys != null)
@@ -91,6 +114,32 @@ namespace SkyHarvest.UI
                 else
                     _interactPromptText.text = $"[E] {target.InteractionPrompt}";
             }
+
+            if (_hotbarNameText != null && _hotbarNameTimer > 0f)
+            {
+                _hotbarNameTimer -= Time.deltaTime;
+                float alpha = Mathf.Clamp01(_hotbarNameTimer / 0.3f);  // fade out in last 0.3s
+                var c = _hotbarNameText.color;
+                _hotbarNameText.color = new Color(c.r, c.g, c.b, alpha);
+                if (_hotbarNameTimer <= 0f)
+                    _hotbarNameText.text = "";
+            }
+        }
+
+        private static string ToolDisplayName(ToolType tool) => tool switch
+        {
+            ToolType.Hoe         => "Hoe",
+            ToolType.WateringCan => "Watering Can",
+            ToolType.Sickle      => "Sickle",
+            ToolType.Hammer      => "Hammer",
+            _                    => ""
+        };
+
+        private static string ItemDisplayName(string? itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return "";
+            var def = GameDatabase.GetItem(itemId);
+            return def?.DisplayName ?? itemId;
         }
 
         private static bool IsInspectable(IInteractable target) =>

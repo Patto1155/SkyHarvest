@@ -11,6 +11,7 @@ namespace SkyHarvest.Workshop
             base.Start();
             LoadFrames("Sprites/structures/stone_mill", 128);
             _workshopId = "stone_mill";
+            SetIdleVisual();
         }
 
         // No special behaviour — base CanContinue returns true always.

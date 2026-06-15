@@ -183,8 +183,8 @@ namespace SkyHarvest.Core
         /// </summary>
         public static Sprite IsoTierFace(Color faceTop, Color faceBottom, int faceHeightPx, bool stair, bool rightSide)
         {
-            const int half = 16;                  // half-height of the 64×32 tile diamond
-            const int halfW = 32;                 // half-width  of the diamond (one edge span)
+            const int half = 16;
+            const int halfW = 32;
             int H = half + faceHeightPx;
             var tex = new Texture2D(halfW, H, TextureFormat.RGBA32, false)
             {
@@ -196,22 +196,46 @@ namespace SkyHarvest.Core
 
             for (int x = 0; x < halfW; x++)
             {
-                float frac = (float)x / (halfW - 1);                 // 0..1 across the half
-                // Top-edge depth: 0 at the side corner, `half` at the bottom tip.
+                float frac = (float)x / (halfW - 1);
                 float dTop = (rightSide ? (1f - frac) : frac) * half;
                 for (int b = 0; b < faceHeightPx; b++)
                 {
                     int yTex = (H - 1) - Mathf.RoundToInt(dTop + b);
                     if (yTex < 0 || yTex >= H) continue;
-                    float t = (float)b / Mathf.Max(1, faceHeightPx - 1);   // 0 top → 1 bottom
+                    float t = (float)b / Mathf.Max(1, faceHeightPx - 1);
                     Color c = Color.Lerp(faceTop, faceBottom, t);
+
                     if (stair)
                     {
                         int stepH = Mathf.Max(4, faceHeightPx / 5);
                         int within = b % stepH;
-                        if (within == 0)              c = Color.Lerp(c, Color.white, 0.30f);  // tread catch-light
-                        else if (within == stepH - 1) c = Color.Lerp(c, Color.black, 0.40f);  // riser shadow
+                        if (within == 0)              c = Color.Lerp(c, Color.white, 0.30f);
+                        else if (within == stepH - 1) c = Color.Lerp(c, Color.black, 0.40f);
                     }
+                    else
+                    {
+                        // Rock texture: value noise + strata lines + edge shadow
+                        float n = RockNoise(x, b, seed: 7);               // –1..1 cell-level noise
+                        float fine = RockNoise(x * 3, b * 3, seed: 13);   // finer grain
+                        float noise = n * 0.10f + fine * 0.05f;
+                        c = new Color(
+                            Mathf.Clamp01(c.r + noise),
+                            Mathf.Clamp01(c.g + noise),
+                            Mathf.Clamp01(c.b + noise), 1f);
+
+                        // Horizontal rock strata — subtle dark lines every ~8px
+                        if (b % 8 == 0)
+                            c = Color.Lerp(c, Color.black, 0.18f);
+
+                        // Occasional lighter surface crack highlight
+                        if (b % 13 == 0 && x % 5 == 2)
+                            c = Color.Lerp(c, Color.white, 0.12f);
+
+                        // Left/right edge receive a directional shadow so face reads as 3D
+                        float edgeShadow = 1f - Mathf.Pow(Mathf.Abs(frac - 0.5f) * 2f, 3f) * 0.3f;
+                        c = new Color(c.r * edgeShadow, c.g * edgeShadow, c.b * edgeShadow, 1f);
+                    }
+
                     px[yTex * halfW + x] = c;
                 }
             }
@@ -219,6 +243,115 @@ namespace SkyHarvest.Core
             tex.Apply();
             var pivot = rightSide ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
             return Sprite.Create(tex, new Rect(0, 0, halfW, H), pivot, Constants.PixelsPerUnit);
+        }
+
+        // Cheap deterministic value noise in [–1, 1] for rock texture detail.
+        private static float RockNoise(int x, int y, int seed)
+        {
+            int h = x * 374761393 ^ y * 668265263 ^ seed * unchecked((int)2246822519);
+            h = (h ^ (h >> 13)) * 1274126177;
+            h ^= h >> 16;
+            return (h & 0xFFFF) / 32767.5f - 1f;
+        }
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Cursor + tile highlight
+        // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Terraria-style pointer: coloured fill with a white outline.
+        /// Pivot is the tip (top-left corner) so the hot-spot sits on the click point.
+        /// </summary>
+        public static Sprite CursorPointer(Color fill, int size = 18)
+        {
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point
+            };
+            var px = new Color[size * size];
+            for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                // NW-pointing arrow mask (tip at top-left).
+                bool inside =
+                    (x <= 1 && y >= size - 2) ||
+                    (x <= 2 && y >= size - 4 && y <= size - 2) ||
+                    (x <= 3 && y >= size - 6 && y <= size - 3) ||
+                    (x <= 4 && y >= size - 8 && y <= size - 4) ||
+                    (x <= 5 && y >= size - 10 && y <= size - 5) ||
+                    (x <= 6 && y >= size - 12 && y <= size - 6) ||
+                    (x <= 7 && y >= size - 14 && y <= size - 7) ||
+                    (x <= 8 && y >= size - 16 && y <= size - 8);
+
+                bool border = false;
+                if (inside)
+                {
+                    bool n = x > 0 && IsCursorArrowPixel(x - 1, y, size);
+                    bool s = y < size - 1 && IsCursorArrowPixel(x, y + 1, size);
+                    bool e = x < size - 1 && IsCursorArrowPixel(x + 1, y, size);
+                    bool w = y > 0 && IsCursorArrowPixel(x, y - 1, size);
+                    border = !n || !s || !e || !w;
+                }
+
+                if (!inside) px[y * size + x] = Color.clear;
+                else if (border) px[y * size + x] = Color.white;
+                else px[y * size + x] = fill;
+            }
+            tex.SetPixels(px);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0f, 1f), 100f);
+        }
+
+        private static bool IsCursorArrowPixel(int x, int y, int size)
+        {
+            return
+                (x <= 1 && y >= size - 2) ||
+                (x <= 2 && y >= size - 4 && y <= size - 2) ||
+                (x <= 3 && y >= size - 6 && y <= size - 3) ||
+                (x <= 4 && y >= size - 8 && y <= size - 4) ||
+                (x <= 5 && y >= size - 10 && y <= size - 5) ||
+                (x <= 6 && y >= size - 12 && y <= size - 6) ||
+                (x <= 7 && y >= size - 14 && y <= size - 7) ||
+                (x <= 8 && y >= size - 16 && y <= size - 8);
+        }
+
+        /// <summary>
+        /// Soft edge glow for an isometric tile — only the diamond rim is lit,
+        /// centre stays transparent so the terrain reads through.
+        /// </summary>
+        public static Sprite IsoDiamondEdgeGlow(Color glowColor, int w = 64, int h = 32, float edgeThickness = 0.12f)
+        {
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Bilinear
+            };
+            var px = new Color[w * h];
+            float cx = w * 0.5f;
+            float cy = h * 0.5f;
+
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float u = (x + 0.5f - cx) / (w * 0.5f);
+                float v = (y + 0.5f - cy) / (h * 0.5f);
+                float manhattan = Mathf.Abs(u) + Mathf.Abs(v);
+
+                if (manhattan > 1.0f)
+                {
+                    px[y * w + x] = Color.clear;
+                    continue;
+                }
+
+                float distToEdge = 1.0f - manhattan;
+                float t = Mathf.Clamp01(distToEdge / edgeThickness);
+                float a = glowColor.a * Mathf.Pow(t, 1.4f);
+                px[y * w + x] = new Color(glowColor.r, glowColor.g, glowColor.b, a);
+            }
+            tex.SetPixels(px);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0f), Constants.PixelsPerUnit);
         }
     }
 }

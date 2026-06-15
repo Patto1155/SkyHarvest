@@ -114,7 +114,7 @@ namespace SkyHarvest.Building
                 _ghostRenderer.color = _ghostValid ? ValidColor : InvalidColor;
         }
 
-        private bool CanPlaceAt(Vector2Int gridPos)
+        public bool CanPlaceAt(Vector2Int gridPos)
         {
             if (_island == null) return false;
             var cell = _island.GetCell(gridPos);
@@ -209,7 +209,6 @@ namespace SkyHarvest.Building
             var go = new GameObject(def.DisplayName);
 
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = MakeFallbackSprite(Color.magenta); // will be overridden if art loads
 
             // Position in world space (dimetric), at the cell's tier elevation.
             float elev = _island?.GetCell(gridPos)?.Elevation ?? 0f;
@@ -222,6 +221,13 @@ namespace SkyHarvest.Building
             // Attach appropriate Structure component based on StructureId
             Structure structure = AttachStructureComponent(go, def);
             structure.Initialize(def, gridPos);
+
+            // Load idle sprite (frame 0 for strips, full texture for single images).
+            // WorkshopBase subclasses override this in Start() — that's fine; this ensures
+            // all other structure types (rain_catcher, skynet, storage, shelter, etc.)
+            // show the correct sprite and never stay on the magenta fallback.
+            sr.sprite = LoadStructureSprite(def) ?? MakeFallbackSprite(Color.magenta);
+
             StructureRegistry.Instance.Register(structure);
 
             // Light-emitting structures get a warm glow pool (forge fire, shelter lantern).
@@ -259,7 +265,16 @@ namespace SkyHarvest.Building
         private static Sprite LoadStructureSprite(StructureDef def)
         {
             if (def == null) return null;
-            try   { return SpriteLoader.Load($"Sprites/structures/{def.StructureId}"); }
+            try
+            {
+                string path = $"Sprites/structures/{def.StructureId}";
+                if (def.SpriteFrameWidth > 0)
+                {
+                    var frames = SpriteLoader.LoadStrip(path, def.SpriteFrameWidth);
+                    return frames.Length > 0 ? frames[0] : null;
+                }
+                return SpriteLoader.Load(path);
+            }
             catch { return null; }
         }
 

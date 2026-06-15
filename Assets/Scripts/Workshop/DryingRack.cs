@@ -14,6 +14,7 @@ namespace SkyHarvest.Workshop
             base.Start();
             LoadFrames("Sprites/structures/drying_rack", 96);
             _workshopId = "drying_rack";
+            SetIdleVisual();
         }
 
         /// <summary>

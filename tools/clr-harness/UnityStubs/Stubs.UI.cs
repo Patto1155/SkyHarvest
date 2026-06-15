@@ -394,5 +394,16 @@ namespace UnityEngine.EventSystems
     public interface IBeginDragHandler { void OnBeginDrag(PointerEventData eventData); }
     public interface IDragHandler { void OnDrag(PointerEventData eventData); }
     public interface IEndDragHandler { void OnEndDrag(PointerEventData eventData); }
+    public interface IDropHandler { void OnDrop(PointerEventData eventData); }
     public interface IScrollHandler { void OnScroll(PointerEventData eventData); }
+
+    public static class RectTransformUtility
+    {
+        public static bool ScreenPointToLocalPointInRectangle(
+            RectTransform rect, Vector2 screenPoint, Camera? cam, out Vector2 localPoint)
+        {
+            localPoint = screenPoint;
+            return true;
+        }
+    }
 }

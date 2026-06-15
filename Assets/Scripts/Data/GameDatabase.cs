@@ -223,6 +223,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "rain_catcher", DisplayName = "Rain Catcher",
+                SpriteFrameWidth = 64,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "scrap", Amount = 3 },
                     new BuildCost { ItemId = "rope",  Amount = 2 }
@@ -251,6 +252,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "skynet", DisplayName = "Skynet",
+                SpriteFrameWidth = 96,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "skynet_frame", Amount = 1 },
                     new BuildCost { ItemId = "rope",         Amount = 2 }
@@ -275,6 +277,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "drying_rack", DisplayName = "Drying Rack",
+                SpriteFrameWidth = 96,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "wood", Amount = 4 },
                     new BuildCost { ItemId = "rope", Amount = 2 }
@@ -283,6 +286,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "stone_mill", DisplayName = "Stone Mill",
+                SpriteFrameWidth = 128,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "stone", Amount = 6 },
                     new BuildCost { ItemId = "wood",  Amount = 4 },
@@ -292,6 +296,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "forge", DisplayName = "Forge",
+                SpriteFrameWidth = 128,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "stone", Amount = 8 },
                     new BuildCost { ItemId = "scrap", Amount = 2 },

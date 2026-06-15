@@ -13,6 +13,7 @@ namespace SkyHarvest.Workshop
             base.Start();
             LoadFrames("Sprites/structures/forge", 128);
             _workshopId = "forge";
+            SetIdleVisual();
         }
 
         /// <summary>

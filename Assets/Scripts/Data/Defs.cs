@@ -88,6 +88,8 @@ namespace SkyHarvest.Data
         public BuildCost[] BuildCosts = Array.Empty<BuildCost>();
         public int SlotCount          = 0;            // storage slots (0 = not storage)
         public PlacementRule PlacementRule = PlacementRule.Any;
+        // 0 = load whole texture as one sprite; >0 = animated strip, preview uses frame 0
+        public int SpriteFrameWidth   = 0;
         // FootprintSize is always (1,1) for MVP per CONVENTIONS.
     }
 

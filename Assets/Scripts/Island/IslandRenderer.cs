@@ -37,6 +37,16 @@ namespace SkyHarvest.Island
         // +y (0,1) = the down-LEFT (SW) edge, +x (1,0) = the down-RIGHT (SE) edge.
         private readonly Dictionary<(bool stair, bool right), Sprite> _faceSprites = new();
 
+        // Rim cliff sprites for void-facing outer edges (keyed by rightSide).
+        private readonly Dictionary<bool, Sprite> _rimFaceSprites = new();
+
+        // Correct face height: covers the full diagonal drop from one tier's edge to the
+        // next.  The 64×32 diamond face has a half-height of 16px; the elevation step
+        // contributes ElevationWorldStep*PPU = 32px; together = 48px of actual wall.
+        private static readonly int TierFaceH = 16 + Mathf.RoundToInt(Constants.ElevationWorldStep * Constants.PixelsPerUnit);
+        // Island underside depth: 1.5 world units of rocky cliff below the surface.
+        private const int RimFaceH = 96;
+
         // -------------------------------------------------------------------------
         // Public API
         // -------------------------------------------------------------------------
@@ -73,6 +83,8 @@ namespace SkyHarvest.Island
         /// Draw a cliff face on each diamond edge whose camera-facing neighbour is a
         /// lower tier, so the raised tier connects down to the lower one edge-to-edge.
         /// The high side of a registered stair edge gets the carved-stair face.
+        /// Also draws tall rocky rim faces on every void-facing outer edge so the
+        /// island reads as a floating chunk of land.
         /// </summary>
         private void BuildTierWalls()
         {
@@ -86,13 +98,27 @@ namespace SkyHarvest.Island
 
                 // Down-LEFT (SW) edge toward the +y neighbour.
                 var sw = pos + new Vector2Int(0, 1);
-                if (_island.IsValidPosition(sw) && myTier > _island.Tier(sw))
-                    AddTierFace(cell, stair: _island.IsStairEdge(pos, sw), rightSide: false);
+                if (_island.IsValidPosition(sw))
+                {
+                    if (myTier > _island.Tier(sw))
+                        AddTierFace(cell, stair: _island.IsStairEdge(pos, sw), rightSide: false);
+                }
+                else
+                {
+                    AddRimFace(cell, rightSide: false);
+                }
 
                 // Down-RIGHT (SE) edge toward the +x neighbour.
                 var se = pos + new Vector2Int(1, 0);
-                if (_island.IsValidPosition(se) && myTier > _island.Tier(se))
-                    AddTierFace(cell, stair: _island.IsStairEdge(pos, se), rightSide: true);
+                if (_island.IsValidPosition(se))
+                {
+                    if (myTier > _island.Tier(se))
+                        AddTierFace(cell, stair: _island.IsStairEdge(pos, se), rightSide: true);
+                }
+                else
+                {
+                    AddRimFace(cell, rightSide: true);
+                }
             }
         }
 
@@ -101,13 +127,31 @@ namespace SkyHarvest.Island
             var key = (stair, rightSide);
             if (_faceSprites.TryGetValue(key, out var sp)) return sp;
 
-            int faceH = Mathf.RoundToInt(Constants.ElevationWorldStep * Constants.PixelsPerUnit);
+            // TierFaceH = 16 (slope half) + 32 (elevation step) = 48px, which
+            // correctly bridges from the raised tile's camera edge down to the lower
+            // tile's matching edge (the old value of 32 was too short and misaligned).
             sp = stair
-                ? ProcGfx.IsoTierFace(new Color(0.54f, 0.46f, 0.35f), new Color(0.27f, 0.22f, 0.18f), faceH, true,  rightSide)
-                : ProcGfx.IsoTierFace(new Color(0.40f, 0.37f, 0.34f), new Color(0.19f, 0.17f, 0.16f), faceH, false, rightSide);
+                ? ProcGfx.IsoTierFace(new Color(0.54f, 0.46f, 0.35f), new Color(0.27f, 0.22f, 0.18f), TierFaceH, true,  rightSide)
+                : ProcGfx.IsoTierFace(new Color(0.40f, 0.37f, 0.34f), new Color(0.19f, 0.17f, 0.16f), TierFaceH, false, rightSide);
             _faceSprites[key] = sp;
             return sp;
         }
+
+        private Sprite RimFaceSprite(bool rightSide)
+        {
+            if (_rimFaceSprites.TryGetValue(rightSide, out var sp)) return sp;
+            // Dark rocky cliff — lighter near the top, near-black at the base.
+            sp = ProcGfx.IsoTierFace(
+                new Color(0.30f, 0.27f, 0.24f),
+                new Color(0.08f, 0.06f, 0.05f),
+                RimFaceH, false, rightSide);
+            _rimFaceSprites[rightSide] = sp;
+            return sp;
+        }
+
+        // Y offset applied to both tier and rim faces so the face top aligns with the
+        // camera-facing diamond edge (which sits 0.25 world units above the cell pivot).
+        private static readonly float FaceYOffset = 16f / Constants.PixelsPerUnit;
 
         private void AddTierFace(IslandCell cell, bool stair, bool rightSide)
         {
@@ -115,12 +159,23 @@ namespace SkyHarvest.Island
 
             var go = new GameObject(stair ? "StairFace" : "WallFace");
             go.transform.SetParent(vis.Root.transform);
-            go.transform.localPosition = Vector3.zero;
+            go.transform.localPosition = new Vector3(0f, FaceYOffset, 0f);
 
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = FaceSprite(stair, rightSide);
-            // Just above this (raised) tile; lower-tier tiles keep a higher sort and
-            // occlude where they genuinely sit in front.
+            sr.sortingOrder = vis.SortBase + 1;
+        }
+
+        private void AddRimFace(IslandCell cell, bool rightSide)
+        {
+            if (!_visuals.TryGetValue(cell.GridPos, out var vis)) return;
+
+            var go = new GameObject("RimFace");
+            go.transform.SetParent(vis.Root.transform);
+            go.transform.localPosition = new Vector3(0f, FaceYOffset, 0f);
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = RimFaceSprite(rightSide);
             sr.sortingOrder = vis.SortBase + 1;
         }
 

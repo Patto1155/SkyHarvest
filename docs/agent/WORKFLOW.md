@@ -26,13 +26,39 @@ bash tools/validate.sh       # check.sh + Unity batch compile + EditMode tests
 ## Build the Windows standalone (batchmode, no dialog, ~30s after import)
 
 ```bash
+bash tools/build.sh
+# or manually:
 "D:/Unity/Hub/Editor/2022.3.45f1/Editor/Unity.exe" -batchmode -quit \
   -projectPath D:/APATPROJECTS/SkyHarvest \
   -executeMethod BuildScript.BuildWindows \
   -logFile artifacts/build.log
 # success line in log: "[BuildScript] BUILD OK -> ...SkyHarvest.exe"
-# output: Builds/Windows/SkyHarvest.exe   (smoke-test: launch, confirm alive, kill)
+# output: Builds/Windows/SkyHarvest.exe
 ```
+
+**Build freshness:** check `Builds/Windows/SkyHarvest_Data/Managed/SkyHarvest.dll` mtime —
+not `SkyHarvest.exe` (the engine bootstrap rarely changes).
+
+## Run the Windows build (play the game)
+
+After a successful build:
+
+```bash
+bash tools/run.sh
+# or manually (from repo root):
+./Builds/Windows/SkyHarvest.exe
+```
+
+`run.sh` rebuilds first if `SkyHarvest.dll` is older than any `Assets/Scripts/**/*.cs`
+file (use `bash tools/run.sh --no-build` to skip). The game opens **windowed 1280×720**.
+Click **New Game** on the main menu to start.
+
+**Controls (quick ref):** WASD move · E interact · Tab inventory · B build menu ·
+1–9/0 hotbar · mouse drag items between hotbar and inventory when Tab is open ·
+Esc cancel / pause.
+
+No Unity admin dialog for the standalone `.exe` — that only affects editor launches.
+
 
 ## Visual verification (Play-mode screenshots) — NEEDS the dialog dismisser
 

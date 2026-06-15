@@ -23,6 +23,7 @@ namespace SkyHarvest.Core
         private InspectorPanel? _inspector;
         private ContextualTooltipUI? _tooltips;
         private InventoryUI? _inventoryUI;
+        private InventoryDragManager? _dragManager;
         private WorkshopUI? _workshopUI;
         private StorageUI? _storageUI;
         private BuildMenuUI? _buildMenu;
@@ -126,14 +127,18 @@ namespace SkyHarvest.Core
             }
 
             // ---- Time + weather texts ----
-            var timeText    = MakeText("TimeText",    canvasGO.transform, new Vector2(-500f, 320f), "00:00", 16);
-            var weatherText = MakeText("WeatherText", canvasGO.transform, new Vector2(400f,  320f), "",     14);
-            var promptText  = MakeText("PromptText",  canvasGO.transform, new Vector2(0f,   -230f), "",     15);
+            var timeText       = MakeText("TimeText",       canvasGO.transform, new Vector2(-500f, 320f), "00:00", 16);
+            var weatherText    = MakeText("WeatherText",    canvasGO.transform, new Vector2(400f,  320f), "",     14);
+            var promptText     = MakeText("PromptText",     canvasGO.transform, new Vector2(0f,   -230f), "",     15);
+            // Minecraft-style slot name — appears briefly above the hotbar on selection change.
+            var hotbarNameText = MakeText("HotbarNameText", canvasGO.transform, new Vector2(0f,   -265f), "",     14);
+            hotbarNameText.color = new Color(1f, 1f, 1f, 0f);   // start invisible
 
             _hud = canvasGO.AddComponent<HUDController>();
             _hud.SetTimeText(timeText);
             _hud.SetWeatherText(weatherText);
             _hud.SetPromptText(promptText);
+            _hud.SetHotbarNameText(hotbarNameText);
             _hud.SetHotbarSlots(hotbarSlots);
 
             // ---- Contextual tooltip banner (top centre) ----
@@ -163,29 +168,40 @@ namespace SkyHarvest.Core
             var minimapBtn = MakeButton("Map", canvasGO.transform, new Vector2(520f, -310f));
             minimapBtn.onClick.AddListener(() => minimapPanel.SetActive(!minimapPanel.activeSelf));
 
-            // ---- Inventory panel ----
+            // ---- Inventory panel (5×4 grid) ----
             var invPanel = MakePanel("InventoryPanel", canvasGO.transform, new Vector2(0f, 0f),
-                new Vector2(600f, 400f));
+                new Vector2(340f, 310f));
             invPanel.SetActive(false);
-            var invTitle = MakeText("InvTitle", invPanel.transform, new Vector2(0f, 175f), "Inventory", 20);
+            var invTitle = MakeText("InvTitle", invPanel.transform, new Vector2(0f, 132f), "Inventory", 20);
             invTitle.fontStyle = FontStyle.Bold;
             _inventoryUI = canvasGO.AddComponent<InventoryUI>();
+            _dragManager = canvasGO.AddComponent<InventoryDragManager>();
 
-            var invLabels = new Text[20];
-            var invIcons  = new Image[20];
-            for (int i = 0; i < 20; i++)
+            const int invCols = InventoryUI.GridColumns;
+            const int invRows = InventoryUI.GridRows;
+            const float invSlotSize = 56f;
+            const float invGap = 6f;
+            var invSlotGOs = new GameObject[InventoryUI.SlotCount];
+            var invBgs     = new Image[InventoryUI.SlotCount];
+            var invIcons   = new Image[InventoryUI.SlotCount];
+            var invCounts  = new Text[InventoryUI.SlotCount];
+            float gridW = invCols * invSlotSize + (invCols - 1) * invGap;
+            float gridH = invRows * invSlotSize + (invRows - 1) * invGap;
+            float startX = -gridW / 2f + invSlotSize / 2f;
+            float startY = gridH / 2f - invSlotSize / 2f - 10f;
+            for (int i = 0; i < InventoryUI.SlotCount; i++)
             {
-                float x = -260f + (i % 5) * 120f;
-                float y =  130f - (i / 5) * 80f;
-                var sg = MakeSlot($"InvSlot{i}", invPanel.transform, new Vector2(x, y));
-                invLabels[i] = sg.GetComponentInChildren<Text>();
-                // Wider, lower label so item names (e.g. "wheat_seed") don't truncate.
-                invLabels[i].rectTransform.sizeDelta     = new Vector2(116f, 14f);
-                invLabels[i].rectTransform.anchoredPosition = new Vector2(0f, -32f);
-                invLabels[i].fontSize = 11;
-                invIcons[i]  = sg.GetComponentInChildren<Image>();
+                int col = i % invCols;
+                int row = i / invCols;
+                float x = startX + col * (invSlotSize + invGap);
+                float y = startY - row * (invSlotSize + invGap);
+                var sg = MakeSlot($"InvSlot{i}", invPanel.transform, new Vector2(x, y), invSlotSize);
+                invSlotGOs[i] = sg;
+                invBgs[i]     = sg.GetComponent<Image>();
+                invIcons[i]   = sg.transform.Find("Icon")!.GetComponent<Image>();
+                invCounts[i]  = sg.transform.Find("Label")!.GetComponent<Text>();
             }
-            _inventoryUI.SetSlotDisplays(invLabels, invIcons);
+            _inventoryUI.SetSlots(invSlotGOs, invBgs, invIcons, invCounts);
 
             // ---- Workshop panel ----
             var wsPanel = MakePanel("WorkshopPanel", canvasGO.transform, new Vector2(0f, 0f), new Vector2(400f, 300f));
@@ -479,6 +495,7 @@ namespace SkyHarvest.Core
                 var invPanel = FindPanel("InventoryPanel");
                 if (invPanel != null) _inventoryUI.Initialize(invPanel, pic);
             }
+            WireInventoryDrag(pic);
             if (_workshopUI != null && pic != null)
             {
                 var wsPanel = FindPanel("WorkshopPanel");
@@ -497,6 +514,38 @@ namespace SkyHarvest.Core
             }
 
             _player.SetUIRefs(_inventoryUI, _workshopUI, _storageUI, _buildMenu, _pauseMenu);
+        }
+
+        private void WireInventoryDrag(PlayerInventoryComponent? pic)
+        {
+            if (_dragManager == null || pic == null || _hud == null || _inventoryUI == null) return;
+            var hotbar = _player?.GetComponent<Hotbar>();
+            if (hotbar == null) return;
+
+            var canvas = _hudCanvas?.GetComponent<Canvas>();
+            if (canvas == null) return;
+
+            _dragManager.Initialize(pic.Inventory, hotbar, _inventoryUI, _hud, canvas);
+
+            // Inventory panel slots (all 20).
+            var invSlots = _inventoryUI.SlotGameObjects;
+            if (invSlots != null)
+            {
+                for (int i = 0; i < invSlots.Length; i++)
+                    _dragManager.RegisterSlot(invSlots[i], i);
+            }
+
+            // Hotbar item slots map onto the first N inventory stacks (skip tool slots).
+            var hbSlots = _hud.HotbarSlotObjects;
+            if (hbSlots != null)
+            {
+                for (int i = 0; i < hbSlots.Length; i++)
+                {
+                    int invIndex = hotbar.Model.InventoryIndexFor(i);
+                    if (invIndex >= 0)
+                        _dragManager.RegisterSlot(hbSlots[i], invIndex);
+                }
+            }
         }
 
         // GameObject.Find ignores INACTIVE objects, and every panel is created SetActive(false),
@@ -583,36 +632,38 @@ namespace SkyHarvest.Core
             return t;
         }
 
-        private static GameObject MakeSlot(string name, Transform parent, Vector2 pos)
+        private static GameObject MakeSlot(string name, Transform parent, Vector2 pos, float size = 48f)
         {
             var go  = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             go.transform.SetParent(parent, false);
             var rt  = go.GetComponent<RectTransform>();
             rt.anchoredPosition = pos;
-            rt.sizeDelta        = new Vector2(48f, 48f);
+            rt.sizeDelta        = new Vector2(size, size);
             var bg  = go.GetComponent<Image>();
-            // Lighter than the panel so empty slots read as a visible grid, not black-on-black.
-            bg.color = new Color(0.40f, 0.34f, 0.28f, 1f);
+            // Warm tan grid cells — light enough that item icons read clearly.
+            bg.color = new Color(0.58f, 0.50f, 0.42f, 1f);
             bg.sprite = SpriteLoader.Load("Sprites/ui/slot");
 
             var iconGO = new GameObject("Icon", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
             iconGO.transform.SetParent(go.transform, false);
             var iconRT = iconGO.GetComponent<RectTransform>();
             iconRT.anchoredPosition = Vector2.zero;
-            iconRT.sizeDelta        = new Vector2(32f, 32f);
+            iconRT.sizeDelta        = new Vector2(size * 0.67f, size * 0.67f);
             var icon = iconGO.GetComponent<Image>();
             icon.enabled = false;
+            icon.raycastTarget = false;
 
             var labelGO = new GameObject("Label", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
             labelGO.transform.SetParent(go.transform, false);
             var labelRT = labelGO.GetComponent<RectTransform>();
-            labelRT.anchoredPosition = new Vector2(0f, -20f);
-            labelRT.sizeDelta        = new Vector2(48f, 16f);
+            labelRT.anchoredPosition = new Vector2(size * 0.22f, -size * 0.22f);
+            labelRT.sizeDelta        = new Vector2(size * 0.5f, 16f);
             var label = labelGO.GetComponent<Text>();
             label.font      = DefaultFont();
-            label.fontSize  = 9;
+            label.fontSize  = 11;
             label.color     = Color.white;
-            label.alignment = TextAnchor.MiddleCenter;
+            label.alignment = TextAnchor.LowerRight;
+            label.raycastTarget = false;
 
             return go;
         }
@@ -625,9 +676,8 @@ namespace SkyHarvest.Core
             rt.anchoredPosition = pos;
             rt.sizeDelta        = size;
             var img = go.GetComponent<Image>();
-            // Warm, OPAQUE panel — the old near-black @0.92 let the world bleed through
-            // and read as an unreadable black box.
-            img.color  = new Color(0.27f, 0.21f, 0.17f, 0.99f);
+            // Warm, opaque panel — readable grid over the world.
+            img.color  = new Color(0.34f, 0.28f, 0.22f, 0.97f);
             img.sprite = SpriteLoader.Load("Sprites/ui/panel");
             return go;
         }
