@@ -172,8 +172,12 @@ namespace SkyHarvest.Player
 
         private Vector2Int FacingOffset() => _facing switch
         {
-            Facing.S => new Vector2Int( 0, -1),
-            Facing.N => new Vector2Int( 0,  1),
+            // In this dimetric projection worldY = (gx+gy)*-0.25 + elev, so pressing
+            // UP on-screen moves toward lower gy (the forge/back tier). N must therefore
+            // offset to lower gy (-1) and S to higher gy (+1) — the opposite of an abstract
+            // cardinal grid where north = +y.
+            Facing.N => new Vector2Int( 0, -1),
+            Facing.S => new Vector2Int( 0,  1),
             Facing.E => new Vector2Int( 1,  0),
             Facing.W => new Vector2Int(-1,  0),
             _        => Vector2Int.zero

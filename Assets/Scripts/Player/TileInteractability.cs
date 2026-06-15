@@ -40,7 +40,7 @@ namespace SkyHarvest.Player
             var plot = FindPlotAt(gridPos);
             var structure = StructureRegistry.Instance?.GetStructureAt(gridPos);
 
-            if (!string.IsNullOrEmpty(heldItem) && plot != null && plot.IsEmpty && IsSowableSeed(heldItem))
+            if (!string.IsNullOrEmpty(heldItem) && !ToolItems.IsTool(heldItem) && plot != null && plot.IsEmpty && IsSowableSeed(heldItem))
                 return true;
 
             switch (tool)
@@ -123,7 +123,8 @@ namespace SkyHarvest.Player
             Vector2 cellWorld = GridMath.GridToWorld(gridPos, elevation);
             foreach (var i in InteractableRegistry.All)
             {
-                if (i is not DebrisObject || i is not MonoBehaviour mb) continue;
+                if (i is not DebrisObject debris) continue;
+                if (debris is not MonoBehaviour mb) continue;
                 if (Vector2.Distance(cellWorld, mb.transform.position) <= DebrisCellRadius)
                     return true;
             }

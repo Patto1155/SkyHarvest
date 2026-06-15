@@ -51,12 +51,16 @@ namespace SkyHarvest.Player
 
             if (!Input.GetKeyDown(KeyCode.E)) return;
 
+            // Stair carve has highest priority so a nearby CropPlot cannot steal the E press
+            // before the player mines their way up to the forge tier.
+            if (TryCarveStairs()) return;
+
             if (CurrentTarget != null)
             {
                 _player?.PlayActionAnimation();
                 CurrentTarget.Interact(_player!);
             }
-            else if (!TryCarveStairs())
+            else
             {
                 TryTillFacingCell();
             }
@@ -90,7 +94,12 @@ namespace SkyHarvest.Player
             if (!_player.TryGetComponent<ToolSystem>(out var tools)) return;
             if (tools.EquippedTool != ToolType.Hoe) return;
 
-            var cell = _player.Island.GetCell(_player.CurrentFacingCell);
+            var facingCell = _player.CurrentFacingCell;
+
+            // Block cross-tier tilling: the player must be on the same tier as the target cell.
+            if (_player.Island.Tier(facingCell) != _player.CurrentTier) return;
+
+            var cell = _player.Island.GetCell(facingCell);
             if (cell == null || cell.IsTilled) return;
             if (!TerrainProperties.CanPlaceCrops(cell.Terrain)) return;
 
@@ -104,24 +113,31 @@ namespace SkyHarvest.Player
         // -----------------------------------------------------------------------
         private void FindNearestInteractable()
         {
-            Vector2 pos     = transform.position;
-            float  closest  = float.MaxValue;
-            IInteractable? best = null;
+            Vector2 pos          = transform.position;
+            float   closest      = float.MaxValue;
+            float   closestDebris = float.MaxValue;
+            IInteractable? best       = null;
+            IInteractable? bestDebris = null;
 
             foreach (var i in InteractableRegistry.All)
             {
-                if (i is MonoBehaviour mb && mb != null)
+                if (i is not MonoBehaviour mb || mb == null) continue;
+                float dist = Vector2.Distance(pos, mb.transform.position);
+                if (dist > InteractRadius) continue;
+
+                if (i is SkyHarvest.Debris.DebrisObject)
                 {
-                    float dist = Vector2.Distance(pos, mb.transform.position);
-                    if (dist < closest && dist <= InteractRadius)
-                    {
-                        closest = dist;
-                        best    = i;
-                    }
+                    if (dist < closestDebris) { closestDebris = dist; bestDebris = i; }
+                }
+                else
+                {
+                    if (dist < closest) { closest = dist; best = i; }
                 }
             }
 
-            CurrentTarget = best;
+            // Prefer debris over other interactables when it is at least as close — this
+            // prevents a CropPlot at the same world position from swallowing the scavenge.
+            CurrentTarget = (bestDebris != null && closestDebris <= closest) ? bestDebris : (best ?? bestDebris);
         }
     }
 }

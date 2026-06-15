@@ -31,6 +31,8 @@ namespace SkyHarvest.Core
         private MainMenuUI? _mainMenu;
         private GameObject? _hudCanvas;   // panels live here; needed to find INACTIVE ones
 
+        private UI.GameCursor? _gameCursor;
+
         private bool _gameStarted;
 
         private void Awake()
@@ -107,9 +109,7 @@ namespace SkyHarvest.Core
             canvasGO.AddComponent<CanvasScaler>();
             canvasGO.AddComponent<GraphicRaycaster>();
 
-            // ---- Unified hotbar (bottom centre): 4 tool slots + 6 item slots ----
-            // Number keys 1-9 then 0 select a slot; the selected tool/seed is what
-            // gets used.  See Hotbar.cs / HotbarModel.
+            // ---- Hotbar: 10 item quick-slots (tools, seeds, etc.) ----
             const int HotbarSlotCount = 10;
             var hotbarGO   = new GameObject("Hotbar", typeof(RectTransform));
             hotbarGO.transform.SetParent(canvasGO.transform, false);
@@ -245,6 +245,11 @@ namespace SkyHarvest.Core
             MakeButton("Resume",    pausePanel.transform, new Vector2(0f,  80f)).onClick.AddListener(_pauseMenu.OnResumeClicked);
             MakeButton("Save",      pausePanel.transform, new Vector2(0f,  20f)).onClick.AddListener(_pauseMenu.OnSaveClicked);
             MakeButton("Save+Quit", pausePanel.transform, new Vector2(0f, -40f)).onClick.AddListener(_pauseMenu.OnSaveAndQuitClicked);
+
+            // ---- Game cursor (hides OS cursor; drawn last so it's always on top) ----
+            _gameCursor = canvasGO.AddComponent<UI.GameCursor>();
+            var hudCam  = Object.FindObjectOfType<Camera>();
+            if (hudCam != null) _gameCursor.Initialize(hudCam, canvas);
         }
 
         private void BuildMenuUI_()
@@ -309,6 +314,7 @@ namespace SkyHarvest.Core
 
             WeatherManager.Instance?.StartWeather();
 
+            WireGameCursor(island);
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = false });
             _gameStarted = true;
         }
@@ -331,12 +337,13 @@ namespace SkyHarvest.Core
 
             var pic = _player?.GetComponent<PlayerInventoryComponent>();
             if (pic != null)
-                foreach (var slot in data.Player.InventorySlots)
-                    pic.Inventory.TryAdd(slot.ItemId, slot.Count);
+                pic.RestoreFromSave(data.Player);
+
+            var hotbar = _player?.GetComponent<Hotbar>();
+            hotbar?.SelectSlot(Mathf.Clamp(data.Player.SelectedHotbarIndex, 0,
+                (hotbar?.Model.SlotCount ?? 1) - 1));
 
             var ts = _player?.GetComponent<ToolSystem>();
-            if (ts != null && !string.IsNullOrEmpty(data.Player.EquippedTool))
-                ts.EquipById(data.Player.EquippedTool);
 
             // Rebuild structures from save (finished + in-progress construction sites)
             var bmc = BuildModeController.Instance;
@@ -386,6 +393,8 @@ namespace SkyHarvest.Core
             var debrisSpawner = Object.FindObjectOfType<DebrisSpawner>();
             debrisSpawner?.SetIsland(island);
             WeatherManager.Instance?.StartWeather();
+
+            WireGameCursor(island);
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = true });
             _gameStarted = true;
         }
@@ -493,7 +502,8 @@ namespace SkyHarvest.Core
             if (_inventoryUI != null && pic != null)
             {
                 var invPanel = FindPanel("InventoryPanel");
-                if (invPanel != null) _inventoryUI.Initialize(invPanel, pic);
+                if (invPanel != null)
+                    _inventoryUI.Initialize(invPanel, pic, _dragManager);
             }
             WireInventoryDrag(pic);
             if (_workshopUI != null && pic != null)
@@ -525,36 +535,36 @@ namespace SkyHarvest.Core
             var canvas = _hudCanvas?.GetComponent<Canvas>();
             if (canvas == null) return;
 
-            _dragManager.Initialize(pic.Inventory, hotbar, _inventoryUI, _hud, canvas);
+            _dragManager.Initialize(pic, _inventoryUI, _hud, canvas);
 
-            // Inventory panel slots (all 20).
             var invSlots = _inventoryUI.SlotGameObjects;
             if (invSlots != null)
             {
                 for (int i = 0; i < invSlots.Length; i++)
-                    _dragManager.RegisterSlot(invSlots[i], i);
+                    _dragManager.RegisterSlot(invSlots[i], PlayerInventoryComponent.HotbarSlots + i);
             }
 
-            // Hotbar item slots map onto the first N inventory stacks (skip tool slots).
             var hbSlots = _hud.HotbarSlotObjects;
             if (hbSlots != null)
             {
                 for (int i = 0; i < hbSlots.Length; i++)
-                {
-                    int invIndex = hotbar.Model.InventoryIndexFor(i);
-                    if (invIndex >= 0)
-                        _dragManager.RegisterSlot(hbSlots[i], invIndex);
-                }
+                    _dragManager.RegisterSlot(hbSlots[i], i);
             }
         }
 
-        // GameObject.Find ignores INACTIVE objects, and every panel is created SetActive(false),
-        // so it returned null and the panels were never Initialize()d (Tab/B/Q did nothing).
-        // Transform.Find locates inactive children by name.
         private GameObject? FindPanel(string name)
         {
             var t = _hudCanvas != null ? _hudCanvas.transform.Find(name) : null;
             return t != null ? t.gameObject : null;
+        }
+
+        private void WireGameCursor(IslandData island)
+        {
+            if (_gameCursor == null || _player == null) return;
+            var tools  = _player.GetComponent<Player.ToolSystem>();
+            var hotbar = _player.GetComponent<Player.Hotbar>();
+            if (tools != null && hotbar != null)
+                _gameCursor.SetGameRefs(island, _player, tools, hotbar);
         }
 
         private void WireBuildMode(IslandData island)
