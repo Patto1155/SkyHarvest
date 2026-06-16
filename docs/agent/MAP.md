@@ -19,16 +19,34 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
 - `Defs.cs` — ItemDef/CropDef/RecipeDef/StructureDef/BuildCost/LootTableDef + `WorkshopType` enum.
 
 ## Island (`Island/`)
-- `IslandGenerator` (seeded proc-gen) → `IslandData` (`Cells` dict, `IsWalkable`) → `IslandRenderer` (tiles + overlays).
+- **New Game** uses `StarterIsland.Build(seed)` — a fixed, designed two-tier 3×4 island (farm
+  tier 0 + raised forge tier 1, one mineable stair edge), NOT the procedural generator.
+  `IslandGenerator` (seeded proc-gen) is still used as the fallback when **Continue** loads a
+  save whose `IsStarterIsland` flag is false (i.e. an older/non-starter save).
+- `IslandData` — `Cells` dict, `IsWalkable`, `IsStarter` flag, tier model: `Tier(pos)` (rounded
+  elevation), `CanTraverse(from,to)` (free within a tier, blocked across tiers except a carved
+  stair edge), `AddStairEdge`/`CarveStairs`/`StairsCarved`/`IsStairEdge`.
+- `IslandRenderer` — tiles + overlays + `BuildTierWalls` (directional cliff faces: `AddTierFace`
+  between tiers, `AddRimFace` on void-facing outer edges) + underside shadow disc for depth.
 - `TerrainType.cs` — enum + `TerrainProperties` (CanPlaceCrops, BaseSoilQuality, tile paths).
 - `SoilPatch.cs` — water/nutrients/quality; composting + rotation depletion live here.
 - `IslandExpansion.cs` — scaffolding-triggered edge growth.
 
 ## Player (`Player/`)
-- `PlayerController` — WASD/arrow movement (legacy axes), facing, walk anims, hotbar 1-4 passthrough.
-- `InteractionSystem` — E key; nearest `IInteractable` via `InteractableRegistry`; `CurrentTarget/PromptText`.
-- `ToolSystem` — slots 1-4 = Hoe/WateringCan/Sickle/Hammer.
-- `PlayerInventory.cs` — `Inventory` POCO (TryAdd/TryRemove/GetCount/Has) + `PlayerInventoryComponent`.
+- `PlayerController` — WASD/arrow movement (legacy axes), facing, walk anims, `CurrentTier`
+  (which elevation tier the player is standing on — see Island section), hotbar passthrough.
+  **`FacingOffset()` N/S is intentionally inverted vs an abstract cardinal grid** — see the
+  comment in the method; the dimetric worldY formula means "up" on screen is lower `gy`.
+- `InteractionSystem` — E key; nearest `IInteractable` via `InteractableRegistry`
+  (debris preferred over crop plots on a distance tie); `CurrentTarget`/`PromptText`;
+  `CanCarveStairs` (drives the HUD "press E to carve passage" hint) checked at highest
+  priority so it can't be stolen by a nearby interactable.
+- `ToolSystem` — slots 1-4 = Hoe/WateringCan/Sickle/Hammer. `ToolItems.cs` — tool-vs-item id
+  helpers used by the hotbar/drag system.
+- `PlayerInventory.cs` — `Inventory` POCO (TryAdd enforces `GameDatabase` `MaxStackSize`,
+  all-or-nothing/TryRemove/GetCount/Has) + `PlayerInventoryComponent`.
+- `InventoryCursorModel.cs` — pickup/drop cursor state for inventory drag-and-drop
+  (`InventoryDragManager` in UI/ owns the MonoBehaviour side).
 
 ## Building (`Building/`)
 - `BuildModeController` — singleton; Bootstrap calls Enter/ExitBuildMode; ghost follows mouse;
@@ -66,11 +84,25 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
   `BuildMenuUI` (↑/↓/Enter select; B opens with build mode), `InspectorPanel` (Q),
   `PauseMenuUI` (Esc; save/quit), `MainMenuUI` (seed input/new/continue), `ContextualTooltipUI`
   (one-time hints via PlayerPrefs).
+- `GameCursor.cs` — hides the OS cursor, draws a custom `ProcGfx.CursorPointer()` sprite, and
+  highlights the hovered tile with `ProcGfx.IsoDiamondEdgeGlow()` only when
+  `TileInteractability.CanInteractAt` says the current tool/held item can act on it.
+- `MinimapController.cs` — real top-down dot map (`RawImage` on a **child** of `MinimapPanel`,
+  not the panel itself — see "gotcha" below) + a live player-position marker. Wired from
+  `Bootstrap.WireGameCursor` after New Game / Continue.
+- `ItemIconPaths.cs` — itemId → icon sprite path lookup, used by hotbar/inventory/drag UI.
+- **Gotcha:** `Bootstrap.MakePanel()` already adds an `Image` (a `Graphic`) to every panel it
+  creates. Unity does not allow two `Graphic` components on one GameObject — if you want to
+  add a `RawImage` or another `Image` to dress up an existing panel, parent it to a **new
+  child GameObject**, never `AddComponent` it directly onto the panel.
 - Keybinds: ALL routed through `Bootstrap.Update` — see SCOPE_LEDGER.md keybind table.
 
 ## Save/Load (`SaveLoad/`)
 - `SaveManager` (`persistentDataPath/saves/save.json`, JsonUtility) + `WorldSaveData` DTOs.
   Construction sites persist via `StructureSaveData.Constructing` + `Delivered`.
+  `IslandSaveData.IsStarterIsland`/`StairsCarved` + `PlayerSaveData.Tier` (added session 7) let
+  `Bootstrap.StartFromSave` rebuild via `StarterIsland.Build` instead of `IslandGenerator`
+  when that's what was actually played, and restore which elevation tier the player was on.
 
 ## Editor harnesses (`Assets/Editor/`)
 - `BuildScript.cs` — `BuildWindows` batchmode build → `Builds/Windows/SkyHarvest.exe`.
