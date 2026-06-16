@@ -50,6 +50,7 @@ namespace SkyHarvest.Island
 
             // The one place the player can cross between tiers — locked until mined.
             island.AddStairEdge(FrontStairCell, BackStairCell);
+            island.MarkAsStarter();
             return island;
         }
     }

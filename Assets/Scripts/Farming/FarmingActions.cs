@@ -75,18 +75,18 @@ namespace SkyHarvest.Farming
             return false;
         }
 
-        /// <summary>Sow a specific seed (the hotbar-selected item) into an empty tilled plot.</summary>
+        /// <summary>Sow a specific seed (hotbar-selected item) into an empty tilled plot.</summary>
         public static bool TrySow(CropPlot plot, PlayerController player, string seedItemId)
         {
             if (string.IsNullOrEmpty(seedItemId)) return false;
-            if (plot.Crop != null) return false;   // already planted
+            if (plot.Crop != null) return false;
 
-            var inv = player.GetComponent<PlayerInventoryComponent>()?.Inventory;
-            if (inv == null) return false;
+            var hotbar = player.GetComponent<Hotbar>();
+            if (hotbar == null || hotbar.HeldItemId != seedItemId) return false;
 
             CropDef? cropDef = TryGetCropForSeed(seedItemId);
-            if (cropDef == null) return false;       // not a sowable seed
-            if (!inv.TryRemove(seedItemId, 1)) return false;
+            if (cropDef == null) return false;
+            if (!hotbar.TryConsumeHeldItem(1)) return false;
 
             plot.Crop = new CropState(
                 cropDef.CropId,

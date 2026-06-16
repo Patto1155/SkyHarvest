@@ -95,7 +95,7 @@ namespace SkyHarvest.Farming
             // Unified hotbar: a held seed plants into an empty tilled plot,
             // regardless of which tool slot was last used (Stardew-style).
             string? held = player.GetComponent<Hotbar>()?.HeldItemId;
-            if (IsEmpty && !string.IsNullOrEmpty(held) &&
+            if (IsEmpty && !string.IsNullOrEmpty(held) && !ToolItems.IsTool(held) &&
                 FarmingActions.TrySow(this, player, held!))
                 return;
 

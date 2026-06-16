@@ -69,6 +69,12 @@ namespace SkyHarvest.Data
             Add("nails",          "Nails",         ItemCategory.Material);
             Add("skynet_frame",   "Skynet Frame",  ItemCategory.Material);
 
+            // Tools (stack size 1 — occupy hotbar/backpack slots like Terraria)
+            Add("tool_hoe",           "Hoe",           ItemCategory.Tool, 1);
+            Add("tool_watering_can",  "Watering Can",  ItemCategory.Tool, 1);
+            Add("tool_sickle",        "Sickle",        ItemCategory.Tool, 1);
+            Add("tool_hammer",        "Hammer",        ItemCategory.Tool, 1);
+
             // Processed
             Add("flour",       "Flour",       ItemCategory.Processed);
             Add("dried_herbs", "Dried Herbs", ItemCategory.Processed);

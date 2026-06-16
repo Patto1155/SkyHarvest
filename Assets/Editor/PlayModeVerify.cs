@@ -163,12 +163,13 @@ public static class PlayModeVerify
 
     private static void StepTools()
     {
-        var tools = _player.GetComponent<ToolSystem>();
-        tools.EquipBySlot(1);
+        var tools  = _player.GetComponent<ToolSystem>();
+        var hotbar = _player.GetComponent<Hotbar>();
+        hotbar.SelectSlot(1);
         bool a = tools.EquippedTool == ToolType.WateringCan;
-        tools.EquipBySlot(3);
+        hotbar.SelectSlot(3);
         bool b = tools.EquippedTool == ToolType.Hammer;
-        tools.EquipBySlot(0);
+        hotbar.SelectSlot(0);
         bool c = tools.EquippedTool == ToolType.Hoe;
         Check("Tool hotbar equip 1-4", a && b && c, $"slots → WateringCan:{a} Hammer:{b} Hoe:{c}");
     }

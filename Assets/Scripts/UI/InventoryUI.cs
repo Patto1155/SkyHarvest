@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using SkyHarvest.Core;
 using SkyHarvest.Data;
+using SkyHarvest.Farming;
 using SkyHarvest.Player;
 
 namespace SkyHarvest.UI
@@ -16,6 +17,7 @@ namespace SkyHarvest.UI
 
         private GameObject? _panel;
         private PlayerInventoryComponent? _playerInv;
+        private InventoryDragManager? _dragManager;
         private Text[]? _slotCounts;
         private Image[]? _slotIcons;
         private Image[]? _slotBgs;
@@ -23,16 +25,20 @@ namespace SkyHarvest.UI
 
         private static readonly Color SlotBg       = new Color(0.58f, 0.50f, 0.42f, 1f);
 
-        public void Initialize(GameObject panel, PlayerInventoryComponent inv)
+        public void Initialize(GameObject panel, PlayerInventoryComponent inv,
+                               InventoryDragManager? dragManager = null)
         {
-            _panel     = panel;
-            _playerInv = inv;
+            _panel       = panel;
+            _playerInv   = inv;
+            _dragManager = dragManager;
             _panel.SetActive(false);
-            EventBus.Subscribe<InventoryChangedEvent>(_ => { if (IsOpen) Refresh(); });
+            EventBus.Subscribe<InventoryChangedEvent>(OnInventoryChanged);
         }
 
+        private void OnInventoryChanged(InventoryChangedEvent _) { if (IsOpen) Refresh(); }
+
         private void OnDestroy() =>
-            EventBus.Unsubscribe<InventoryChangedEvent>(_ => { });
+            EventBus.Unsubscribe<InventoryChangedEvent>(OnInventoryChanged);
 
         public void SetSlots(GameObject[] slotGOs, Image[] bgs, Image[] icons, Text[] counts)
         {
@@ -57,6 +63,7 @@ namespace SkyHarvest.UI
         {
             IsOpen = false;
             _panel?.SetActive(false);
+            _dragManager?.OnInventoryClosed();
         }
 
         public void RefreshIfOpen() { if (IsOpen) Refresh(); }
@@ -65,15 +72,17 @@ namespace SkyHarvest.UI
         {
             if (_playerInv == null || _slotCounts == null) return;
             var slots = _playerInv.Inventory.Slots;
-            for (int i = 0; i < _slotCounts.Length && i < slots.Length; i++)
+            for (int i = 0; i < _slotCounts.Length; i++)
             {
-                bool empty = slots[i].IsEmpty;
+                int invIdx = PlayerInventoryComponent.HotbarSlots + i;
+                if (invIdx >= slots.Length) break;
+                bool empty = slots[invIdx].IsEmpty;
 
                 if (_slotBgs != null && i < _slotBgs.Length && _slotBgs[i] != null)
                     _slotBgs[i].color = SlotBg;
 
                 if (_slotCounts[i] != null)
-                    _slotCounts[i].text = empty || slots[i].Count <= 1 ? "" : slots[i].Count.ToString();
+                    _slotCounts[i].text = empty || slots[invIdx].Count <= 1 ? "" : slots[invIdx].Count.ToString();
 
                 if (_slotIcons != null && i < _slotIcons.Length && _slotIcons[i] != null)
                 {
@@ -84,7 +93,7 @@ namespace SkyHarvest.UI
                     }
                     else
                     {
-                        var spr = SpriteLoader.Load($"Sprites/items/icon_{slots[i].ItemId}");
+                        var spr = SpriteLoader.Load(ItemIconPaths.For(slots[invIdx].ItemId));
                         _slotIcons[i].sprite  = spr;
                         _slotIcons[i].enabled = spr != null;
                     }

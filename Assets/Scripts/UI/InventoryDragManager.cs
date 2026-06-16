@@ -7,68 +7,34 @@ using SkyHarvest.Player;
 namespace SkyHarvest.UI
 {
     /// <summary>
-    /// Terraria-style inventory cursor: pick up stacks, drag a ghost icon, place/swap/merge.
-    /// Works on inventory-panel slots and hotbar item slots (which map onto inventory indices).
+    /// Minecraft cursor — rearrange any slot while the inventory panel is open only.
+    /// Hotbar (indices 0-9) and backpack (10-29) share one inventory array.
     /// </summary>
     public class InventoryDragManager : MonoBehaviour
     {
-        private Inventory? _inventory;
-        private Hotbar? _hotbar;
+        private PlayerInventoryComponent? _playerInv;
         private InventoryUI? _inventoryUI;
         private HUDController? _hud;
 
         private Image? _ghostIcon;
         private Text? _ghostCount;
         private Canvas? _canvas;
+        private GameObject? _ghostRoot;
 
-        private int _heldFromIndex = -1;
-        private string? _heldItemId;
-        private int _heldCount;
-        private bool _suppressClick;
+        private CursorStack _cursor;
+        private int _pickupIndex = -1;
 
-        public bool IsHolding => !string.IsNullOrEmpty(_heldItemId) && _heldCount > 0;
+        public bool IsHolding => !_cursor.IsEmpty;
+        public bool IsInventoryOpen => _inventoryUI != null && _inventoryUI.IsOpen;
 
-        public void Initialize(Inventory inventory, Hotbar hotbar, InventoryUI inventoryUI,
+        public void Initialize(PlayerInventoryComponent playerInv, InventoryUI inventoryUI,
                                HUDController hud, Canvas canvas)
         {
-            _inventory   = inventory;
-            _hotbar      = hotbar;
+            _playerInv    = playerInv;
             _inventoryUI = inventoryUI;
             _hud         = hud;
             _canvas      = canvas;
             BuildGhost();
-            EventBus.Subscribe<InventoryChangedEvent>(_ => RefreshDisplays());
-        }
-
-        private void OnDestroy() =>
-            EventBus.Unsubscribe<InventoryChangedEvent>(_ => RefreshDisplays());
-
-        private void BuildGhost()
-        {
-            var go = new GameObject("DragGhost", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            go.transform.SetParent(transform, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.sizeDelta = new Vector2(40f, 40f);
-            var icon = go.GetComponent<Image>();
-            icon.raycastTarget = false;
-            icon.enabled = false;
-            _ghostIcon = icon;
-
-            var lblGO = new GameObject("Count", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
-            lblGO.transform.SetParent(go.transform, false);
-            var lblRT = lblGO.GetComponent<RectTransform>();
-            lblRT.anchoredPosition = new Vector2(14f, -14f);
-            lblRT.sizeDelta        = new Vector2(28f, 16f);
-            var lbl = lblGO.GetComponent<Text>();
-            lbl.font      = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            lbl.fontSize  = 11;
-            lbl.color     = Color.white;
-            lbl.alignment = TextAnchor.LowerRight;
-            lbl.raycastTarget = false;
-            _ghostCount = lbl;
-
-            go.transform.SetAsLastSibling();
-            go.SetActive(false);
         }
 
         public void RegisterSlot(GameObject slotGO, int inventoryIndex)
@@ -78,159 +44,158 @@ namespace SkyHarvest.UI
             slot.Setup(this, inventoryIndex);
         }
 
-        /// <summary>Single click — pick up or place (Terraria).</summary>
         public void OnSlotClick(int inventoryIndex)
         {
-            if (_suppressClick)
-            {
-                _suppressClick = false;
-                return;
-            }
-            if (_inventory == null) return;
+            if (!IsInventoryOpen) return;
 
-            if (!IsHolding)
-            {
-                TryPickUp(inventoryIndex);
-                return;
-            }
+            var inv = _playerInv?.Inventory;
+            if (inv == null || inventoryIndex < 0 || inventoryIndex >= inv.Slots.Length) return;
 
-            if (inventoryIndex == _heldFromIndex)
-                ReturnHeldToSource();
-            else
-                PlaceHeldOn(inventoryIndex);
-        }
+            bool wasEmpty = _cursor.IsEmpty;
+            _cursor = InventoryCursorModel.ClickSlot(inv, _cursor, inventoryIndex);
 
-        /// <summary>Drag start — pick up if needed and show ghost.</summary>
-        public void OnSlotBeginDrag(int inventoryIndex, PointerEventData eventData)
-        {
-            if (_inventory == null) return;
-            _suppressClick = true;
+            if (wasEmpty && !_cursor.IsEmpty)
+                _pickupIndex = inventoryIndex;
+            else if (_cursor.IsEmpty)
+                _pickupIndex = -1;
 
-            if (!IsHolding)
-                TryPickUp(inventoryIndex);
-
-            if (IsHolding)
-                ShowGhost(eventData.position, _heldItemId!, _heldCount);
-        }
-
-        public void OnSlotDrag(PointerEventData eventData)
-        {
-            if (!IsHolding || _ghostIcon == null) return;
-            UpdateGhostPosition(eventData.position);
-        }
-
-        public void OnSlotDrop(int inventoryIndex)
-        {
-            if (!IsHolding) return;
-            if (inventoryIndex == _heldFromIndex)
-                ReturnHeldToSource();
-            else
-                PlaceHeldOn(inventoryIndex);
-        }
-
-        public void CancelHold()
-        {
-            if (!IsHolding) return;
-            ReturnHeldToSource();
-        }
-
-        private void TryPickUp(int inventoryIndex)
-        {
-            if (_inventory == null) return;
-            var (id, count) = _inventory.TakeFromSlot(inventoryIndex);
-            if (string.IsNullOrEmpty(id) || count <= 0) return;
-            _heldFromIndex = inventoryIndex;
-            _heldItemId    = id;
-            _heldCount     = count;
-            ShowGhost(Input.mousePosition, id, count);
+            EventBus.Publish(new InventoryChangedEvent());
+            SyncGhost();
             RefreshDisplays();
         }
 
-        private void PlaceHeldOn(int inventoryIndex)
+        public void OnInventoryClosed() => ReturnCursor();
+
+        public void CancelHold() => ReturnCursor();
+
+        private void ReturnCursor()
         {
-            if (_inventory == null || !IsHolding) return;
+            if (_cursor.IsEmpty) return;
 
-            var (swapId, swapCount) = _inventory.PlaceOnSlot(inventoryIndex, _heldItemId!, _heldCount);
-            if (string.IsNullOrEmpty(swapId) || swapCount <= 0)
-                ClearHeld();
-            else
+            var inv = _playerInv?.Inventory;
+            if (inv == null) { _cursor.Clear(); HideGhost(); return; }
+
+            if (_pickupIndex >= 0 && _pickupIndex < inv.Slots.Length)
             {
-                _heldFromIndex = inventoryIndex;
-                _heldItemId    = swapId;
-                _heldCount     = swapCount;
-                if (_ghostIcon != null && _ghostIcon.enabled)
-                    _ghostIcon.sprite = SpriteLoader.Load($"Sprites/items/icon_{swapId}");
-                if (_ghostCount != null)
-                    _ghostCount.text = swapCount > 1 ? swapCount.ToString() : "";
-            }
-            RefreshDisplays();
-        }
-
-        private void ReturnHeldToSource()
-        {
-            if (_inventory == null || !IsHolding) return;
-
-            if (_heldFromIndex >= 0)
-            {
-                var (swapId, swapCount) = _inventory.PlaceOnSlot(_heldFromIndex, _heldItemId!, _heldCount);
-                // If source was filled while we held (shouldn't happen), carry the displaced stack.
-                if (!string.IsNullOrEmpty(swapId) && swapCount > 0)
+                var src = inv.Slots[_pickupIndex];
+                if (src.IsEmpty)
                 {
-                    _heldItemId = swapId;
-                    _heldCount  = swapCount;
+                    _cursor.WriteTo(src);
+                    _cursor.Clear();
+                    _pickupIndex = -1;
+                    EventBus.Publish(new InventoryChangedEvent());
+                    SyncGhost();
+                    RefreshDisplays();
+                    return;
+                }
+
+                if (src.ItemId == _cursor.ItemId)
+                {
+                    src.Count += _cursor.Count;
+                    _cursor.Clear();
+                    _pickupIndex = -1;
+                    EventBus.Publish(new InventoryChangedEvent());
+                    SyncGhost();
                     RefreshDisplays();
                     return;
                 }
             }
-            ClearHeld();
+
+            for (int i = 0; i < inv.Slots.Length; i++)
+            {
+                if (!inv.Slots[i].IsEmpty) continue;
+                _cursor.WriteTo(inv.Slots[i]);
+                _cursor.Clear();
+                _pickupIndex = -1;
+                EventBus.Publish(new InventoryChangedEvent());
+                SyncGhost();
+                RefreshDisplays();
+                return;
+            }
+
+            if (_pickupIndex >= 0)
+                _cursor = InventoryCursorModel.ClickSlot(inv, _cursor, _pickupIndex);
+            _pickupIndex = -1;
+            EventBus.Publish(new InventoryChangedEvent());
+            SyncGhost();
             RefreshDisplays();
         }
 
-        private void ClearHeld()
+        private void BuildGhost()
         {
-            _heldFromIndex = -1;
-            _heldItemId    = null;
-            _heldCount     = 0;
-            HideGhost();
+            _ghostRoot = new GameObject("DragGhost", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+            _ghostRoot.transform.SetParent(_canvas != null ? _canvas.transform : transform, false);
+            var rt = _ghostRoot.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(40f, 40f);
+            var icon = _ghostRoot.GetComponent<Image>();
+            icon.raycastTarget = false;
+            icon.enabled = false;
+            _ghostIcon = icon;
+
+            var lblGO = new GameObject("Count", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            lblGO.transform.SetParent(_ghostRoot.transform, false);
+            var lblRT = lblGO.GetComponent<RectTransform>();
+            lblRT.anchoredPosition = new Vector2(14f, -14f);
+            lblRT.sizeDelta        = new Vector2(28f, 16f);
+            var lbl = lblGO.GetComponent<Text>();
+            lbl.font          = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            lbl.fontSize      = 11;
+            lbl.color         = Color.white;
+            lbl.alignment     = TextAnchor.LowerRight;
+            lbl.raycastTarget = false;
+            _ghostCount = lbl;
+
+            _ghostRoot.transform.SetAsLastSibling();
+            _ghostRoot.SetActive(false);
         }
 
-        private void ShowGhost(Vector2 screenPos, string itemId, int count)
+        private void SyncGhost()
         {
-            if (_ghostIcon == null) return;
-            _ghostIcon.transform.parent.gameObject.SetActive(true);
-            _ghostIcon.sprite  = SpriteLoader.Load($"Sprites/items/icon_{itemId}");
-            _ghostIcon.enabled = _ghostIcon.sprite != null;
+            if (_cursor.IsEmpty || !IsInventoryOpen) { HideGhost(); return; }
+
+            if (_ghostRoot != null)
+            {
+                _ghostRoot.SetActive(true);
+                _ghostRoot.transform.SetAsLastSibling();
+            }
+            if (_ghostIcon != null)
+            {
+                _ghostIcon.sprite  = SpriteLoader.Load(ItemIconPaths.For(_cursor.ItemId!));
+                _ghostIcon.enabled = _ghostIcon.sprite != null;
+            }
             if (_ghostCount != null)
-                _ghostCount.text = count > 1 ? count.ToString() : "";
-            UpdateGhostPosition(screenPos);
+                _ghostCount.text = _cursor.Count > 1 ? _cursor.Count.ToString() : "";
+            UpdateGhostPosition(Input.mousePosition);
         }
 
         private void HideGhost()
         {
-            if (_ghostIcon != null)
-                _ghostIcon.transform.parent.gameObject.SetActive(false);
+            if (_ghostRoot != null) _ghostRoot.SetActive(false);
         }
 
         private void UpdateGhostPosition(Vector2 screenPos)
         {
             if (_ghostIcon == null || _canvas == null) return;
-            var rt = _ghostIcon.rectTransform;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                _canvas.transform as RectTransform, screenPos,
-                _canvas.worldCamera, out var local);
-            rt.anchoredPosition = local;
+                _canvas.transform as RectTransform, screenPos, null, out var local);
+            _ghostIcon.rectTransform.anchoredPosition = local;
         }
 
         private void Update()
         {
-            if (!IsHolding) return;
+            if (!IsInventoryOpen)
+            {
+                if (IsHolding) ReturnCursor();
+                return;
+            }
 
-            // Right-click or Escape returns the held stack (Terraria cancel).
-            if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape))
-                CancelHold();
-
-            if (_ghostIcon != null && _ghostIcon.transform.parent.gameObject.activeSelf)
-                UpdateGhostPosition(Input.mousePosition);
+            if (!_cursor.IsEmpty)
+            {
+                if (Input.GetMouseButtonDown(1))
+                    CancelHold();
+                if (_ghostRoot != null && _ghostRoot.activeSelf)
+                    UpdateGhostPosition(Input.mousePosition);
+            }
         }
 
         private void RefreshDisplays()

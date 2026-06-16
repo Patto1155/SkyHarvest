@@ -39,6 +39,7 @@ namespace SkyHarvest.UI
             EventBus.Subscribe<HourChangedEvent>(OnHourChanged);
             EventBus.Subscribe<WeatherChangedEvent>(OnWeatherChanged);
             EventBus.Subscribe<InventoryChangedEvent>(_ => RefreshHotbar());
+            EventBus.Subscribe<HotbarChangedEvent>(_ => RefreshHotbar());
             EventBus.Subscribe<ToolEquippedEvent>(_ => RefreshHotbar());
             EventBus.Subscribe<HotbarSelectionChangedEvent>(OnHotbarSelectionChanged);
             RefreshHotbar();
@@ -93,9 +94,7 @@ namespace SkyHarvest.UI
             RefreshHotbar();
             if (_hotbarNameText == null || _hotbar == null) return;
             var model = _hotbar.Model;
-            string name = model.IsToolSlot(e.SlotIndex)
-                ? ToolDisplayName(model.ToolAt(e.SlotIndex))
-                : ItemDisplayName(model.ItemIdAt(e.SlotIndex));
+            string name = ItemDisplayName(model.ItemIdAt(e.SlotIndex));
             if (string.IsNullOrEmpty(name)) return;
             _hotbarNameText.text  = name;
             _hotbarNameText.color = Color.white;
@@ -107,12 +106,14 @@ namespace SkyHarvest.UI
             if (_interactPromptText != null && _interactSys != null)
             {
                 var target = _interactSys.CurrentTarget;
-                if (target == null)
-                    _interactPromptText.text = "";
-                else if (IsInspectable(target))
-                    _interactPromptText.text = $"[E] {target.InteractionPrompt}   [Q] Inspect";
+                if (target != null)
+                    _interactPromptText.text = IsInspectable(target)
+                        ? $"[E] {target.InteractionPrompt}   [Q] Inspect"
+                        : $"[E] {target.InteractionPrompt}";
+                else if (_interactSys.CanCarveStairs)
+                    _interactPromptText.text = "[E] Carve passage to the forge";
                 else
-                    _interactPromptText.text = $"[E] {target.InteractionPrompt}";
+                    _interactPromptText.text = "";
             }
 
             if (_hotbarNameText != null && _hotbarNameTimer > 0f)
@@ -126,15 +127,6 @@ namespace SkyHarvest.UI
             }
         }
 
-        private static string ToolDisplayName(ToolType tool) => tool switch
-        {
-            ToolType.Hoe         => "Hoe",
-            ToolType.WateringCan => "Watering Can",
-            ToolType.Sickle      => "Sickle",
-            ToolType.Hammer      => "Hammer",
-            _                    => ""
-        };
-
         private static string ItemDisplayName(string? itemId)
         {
             if (string.IsNullOrEmpty(itemId)) return "";
@@ -145,17 +137,6 @@ namespace SkyHarvest.UI
         private static bool IsInspectable(IInteractable target) =>
             target is CropPlot or Structure;
 
-        private static string ToolIconPath(ToolType tool) => tool switch
-        {
-            ToolType.Hoe         => "Sprites/ui/icon_tool_hoe",
-            ToolType.WateringCan => "Sprites/ui/icon_tool_wateringcan",
-            ToolType.Sickle      => "Sprites/ui/icon_tool_sickle",
-            ToolType.Hammer      => "Sprites/ui/icon_tool_hammer",
-            _                    => ""
-        };
-
-        // Renders the unified bar: leading tool slots, then a window onto the
-        // first inventory stacks, with the selected slot highlighted.
         private void RefreshHotbar()
         {
             if (_hotbarIcons == null || _hotbarBgs == null || _hotbarCounts == null) return;
@@ -167,21 +148,10 @@ namespace SkyHarvest.UI
                 if (_hotbarBgs[i] != null)
                     _hotbarBgs[i].color = selected ? SlotSelected : SlotNormal;
 
-                string iconPath;
-                string countText;
-
-                if (model != null && model.IsToolSlot(i))
-                {
-                    iconPath  = ToolIconPath(model.ToolAt(i));
-                    countText = "";
-                }
-                else
-                {
-                    string? itemId = model?.ItemIdAt(i);
-                    iconPath = string.IsNullOrEmpty(itemId) ? "" : $"Sprites/items/icon_{itemId}";
-                    int count = model?.CountAt(i) ?? 0;
-                    countText = count > 1 ? count.ToString() : "";
-                }
+                string? itemId = model?.ItemIdAt(i);
+                string iconPath = string.IsNullOrEmpty(itemId) ? "" : ItemIconPaths.For(itemId);
+                int count = model?.CountAt(i) ?? 0;
+                string countText = count > 1 ? count.ToString() : "";
 
                 if (_hotbarIcons[i] != null)
                 {

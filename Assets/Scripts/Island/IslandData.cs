@@ -24,6 +24,10 @@ namespace SkyHarvest.Island
         public int Seed { get; }
         public int Radius { get; }
 
+        /// <summary>True when this island was built by StarterIsland (not IslandGenerator).</summary>
+        public bool IsStarter { get; private set; }
+        internal void MarkAsStarter() => IsStarter = true;
+
         public IslandData(int seed, int radius = 0)
         {
             Seed   = seed;

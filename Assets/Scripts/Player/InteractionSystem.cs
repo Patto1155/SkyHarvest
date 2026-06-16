@@ -37,6 +37,18 @@ namespace SkyHarvest.Player
         public IInteractable? CurrentTarget { get; private set; }
         public string PromptText => CurrentTarget?.InteractionPrompt ?? string.Empty;
 
+        /// <summary>True when the player is facing the uncarved stair edge — used by HUD to show a prompt.</summary>
+        public bool CanCarveStairs
+        {
+            get
+            {
+                var island = _player?.Island;
+                if (island == null || island.StairsCarved) return false;
+                var cur = SkyHarvest.Core.GridMath.WorldToGrid(_player!.transform.position, _player.CurrentTier);
+                return island.IsStairEdge(cur, _player.CurrentFacingCell);
+            }
+        }
+
         // -----------------------------------------------------------------------
         // Unity lifecycle
         // -----------------------------------------------------------------------

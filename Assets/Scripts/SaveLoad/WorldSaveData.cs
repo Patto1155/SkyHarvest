@@ -19,6 +19,8 @@ namespace SkyHarvest.SaveLoad
     {
         public int Seed;
         public int Radius = Core.Constants.DefaultIslandRadius;
+        public bool IsStarterIsland;
+        public bool StairsCarved;
         public List<CellSaveData> ModifiedCells = new();
         public List<StructureSaveData> Structures = new();
         public List<CropSaveData> Crops = new();
@@ -84,6 +86,8 @@ namespace SkyHarvest.SaveLoad
     [Serializable]
     public class SlotSaveData
     {
+        /// <summary>Global inventory index (0-9 hotbar, 10+ backpack). -1 = legacy sequential load.</summary>
+        public int SlotIndex = -1;
         public string ItemId = "";
         public int Count;
     }
@@ -92,7 +96,10 @@ namespace SkyHarvest.SaveLoad
     public class PlayerSaveData
     {
         public float PosX, PosY, PosZ;
+        public int Tier;  // elevation tier (0=farm, 1=forge) — needed to restore cross-tier saves
         public string EquippedTool = "";
+        public int SelectedHotbarIndex;
         public List<SlotSaveData> InventorySlots = new();
+        public List<SlotSaveData> HotbarSlots = new();
     }
 }

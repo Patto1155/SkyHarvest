@@ -1,8 +1,4 @@
-// Assets/Scripts/Player/ToolSystem.cs
-// Owned by: world/island agent
-// Holds the currently equipped tool (Hoe/WateringCan/Sickle/Hammer).
-// Selection is driven by the unified Hotbar (number keys) — see Hotbar.cs.
-// Publishes ToolEquippedEvent on every equip change.
+// Selection is driven by the hotbar — equips whichever tool item is selected.
 using UnityEngine;
 using SkyHarvest.Core;
 
@@ -12,41 +8,35 @@ namespace SkyHarvest.Player
 
     public class ToolSystem : MonoBehaviour
     {
-        private static readonly ToolType[] Slots =
-        {
-            ToolType.Hoe,
-            ToolType.WateringCan,
-            ToolType.Sickle,
-            ToolType.Hammer
-        };
-
         public ToolType EquippedTool { get; private set; } = ToolType.None;
+
+        public void EquipFromItemId(string? itemId)
+        {
+            var tool = ToolItems.GetToolType(itemId);
+            if (tool == ToolType.None) Unequip();
+            else                       EquipTool(tool);
+        }
 
         public void EquipTool(ToolType tool)
         {
             if (EquippedTool == tool) return;
             EquippedTool = tool;
-            int slotIdx = System.Array.IndexOf(Slots, tool);
-            EventBus.Publish(new ToolEquippedEvent { SlotIndex = slotIdx });
-        }
-
-        public void EquipBySlot(int slotIndex)
-        {
-            if (slotIndex >= 0 && slotIndex < Slots.Length)
-                EquipTool(Slots[slotIndex]);
+            EventBus.Publish(new ToolEquippedEvent { SlotIndex = (int)tool });
         }
 
         public void Unequip()
         {
+            if (EquippedTool == ToolType.None) return;
             EquippedTool = ToolType.None;
             EventBus.Publish(new ToolEquippedEvent { SlotIndex = -1 });
         }
 
         public string EquippedToolId => EquippedTool.ToString();
 
+        /// <summary>Save/load — maps legacy ToolType name to equipped state.</summary>
         public void EquipById(string toolId)
         {
-            if (System.Enum.TryParse<ToolType>(toolId, out var t))
+            if (System.Enum.TryParse<ToolType>(toolId, out var t) && t != ToolType.None)
                 EquipTool(t);
         }
     }

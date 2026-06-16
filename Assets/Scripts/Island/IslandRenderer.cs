@@ -75,6 +75,9 @@ namespace SkyHarvest.Island
 
             // Two-tier cliff walls (raised forge tier dropping to the lower farm).
             BuildTierWalls();
+
+            // Atmospheric depth: soft shadow disc below the island's underside.
+            AddIslandShadow(island);
         }
 
         // ---- Two-tier cliff walls ----
@@ -177,6 +180,33 @@ namespace SkyHarvest.Island
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = RimFaceSprite(rightSide);
             sr.sortingOrder = vis.SortBase + 1;
+        }
+
+        private static void AddIslandShadow(IslandData island)
+        {
+            // Sum world positions to find centroid.
+            var sum = Vector2.zero;
+            int n = 0;
+            float minY = float.MaxValue;
+            foreach (var cell in island.Cells.Values)
+            {
+                var wp = GridMath.GridToWorld(cell.GridPos, cell.Elevation);
+                sum += wp;
+                if (wp.y < minY) minY = wp.y;
+                n++;
+            }
+            if (n == 0) return;
+            var centre = sum / n;
+
+            var go = new GameObject("IslandShadow");
+            // Position the shadow below the island's lowest visible point.
+            go.transform.position = new Vector3(centre.x, minY - 0.8f, 0f);
+            // Squash into a wide, flat oval that reads as the island's underbelly.
+            go.transform.localScale = new Vector3(4.0f, 0.5f, 1f);
+
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = ProcGfx.SoftDisc(new Color(0.04f, 0.03f, 0.03f, 0.50f), 64, 2.0f);
+            sr.sortingOrder = -20000;  // behind all terrain
         }
 
         /// <summary>

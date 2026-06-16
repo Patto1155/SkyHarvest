@@ -24,20 +24,10 @@ namespace SkyHarvest.UI
         // ---- cursor UI ----
         private RectTransform? _cursorRT;
 
-        // ---- tile highlight (world-space LineRenderer) ----
-        private LineRenderer? _highlight;
-        private Vector2Int    _lastCell  = new(int.MinValue, 0);
-        private bool          _hlVisible;
-
-        // Diamond vertices relative to cell centre (world units, 2:1 dimetric projection).
-        // From GridToWorld: TileWorldWidth=1, TileWorldHeight=0.5; half-extents are ±0.5 x, ±0.25 y.
-        private static readonly Vector2[] DiamondVerts =
-        {
-            new( 0f,    0.25f),   // top
-            new( 0.5f,  0f   ),   // right
-            new( 0f,   -0.25f),   // bottom
-            new(-0.5f,  0f   ),   // left
-        };
+        // ---- tile highlight (world-space SpriteRenderer) ----
+        private SpriteRenderer? _highlightSR;
+        private Vector2Int      _lastCell   = new(int.MinValue, 0);
+        private bool            _hlVisible;
 
         // -----------------------------------------------------------------------
         // Bootstrap wiring
@@ -82,48 +72,14 @@ namespace SkyHarvest.UI
             go.transform.SetAsLastSibling();
 
             _cursorRT = go.GetComponent<RectTransform>();
-            _cursorRT.sizeDelta = new Vector2(20f, 20f);
-            _cursorRT.pivot     = Vector2.up;   // top-left of sprite = cursor tip
+            _cursorRT.sizeDelta = new Vector2(18f, 18f);
+            _cursorRT.pivot     = new Vector2(0f, 1f);  // top-left = cursor tip
 
             var img = go.GetComponent<Image>();
-            img.sprite        = MakeCursorSprite();
+            // ProcGfx.CursorPointer draws a proper NW-pointing Terraria-style arrow
+            // with white border and sky-blue fill, pivot pinned at the tip.
+            img.sprite        = ProcGfx.CursorPointer(new Color(0.31f, 0.78f, 1f), 18);
             img.raycastTarget = false;
-        }
-
-        private static Sprite MakeCursorSprite()
-        {
-            const int S = 20;
-            var tex = new Texture2D(S, S, TextureFormat.RGBA32, false);
-            tex.filterMode = FilterMode.Point;
-
-            var px = new Color32[S * S];
-            var clear  = new Color32(0, 0, 0, 0);
-            var white  = new Color32(255, 255, 255, 255);
-            var fill   = new Color32(80, 200, 255, 220);   // sky-blue, matches the island palette
-
-            for (int i = 0; i < px.Length; i++) px[i] = clear;
-
-            // Arrow cursor pointing top-left.
-            // Row indices count from the bottom of the texture; the top of the image
-            // is row S-1. We define the arrow in "screen row" order (row 0 = topmost pixel)
-            // then flip for Unity's bottom-up convention.
-            // Arrow body: a right-triangle with the right-angle at top-left.
-            int arrowH = 14;   // height of the arrow shaft
-            for (int screenRow = 0; screenRow < arrowH; screenRow++)
-            {
-                int texRow = S - 1 - screenRow;
-                int rowLen = arrowH - screenRow;   // gets shorter as we go down
-                for (int col = 0; col < rowLen + 1 && col < S; col++)
-                {
-                    bool border = col == 0 || col == rowLen || screenRow == 0 ||
-                                  (screenRow == arrowH - 1 && col <= 1);
-                    px[texRow * S + col] = border ? white : fill;
-                }
-            }
-
-            tex.SetPixels32(px);
-            tex.Apply();
-            return Sprite.Create(tex, new Rect(0, 0, S, S), Vector2.up, 1f);
         }
 
         private void MoveCursor()
@@ -141,23 +97,17 @@ namespace SkyHarvest.UI
         private void BuildHighlight()
         {
             var go = new GameObject("TileHighlight");
-            _highlight = go.AddComponent<LineRenderer>();
-            _highlight.positionCount  = 5;     // 4 corners + close the loop
-            _highlight.loop           = false;
-            _highlight.useWorldSpace  = true;
-            _highlight.widthMultiplier = 0.032f;
-
-            var mat = new Material(Shader.Find("Sprites/Default"));
-            _highlight.material    = mat;
-            _highlight.startColor  = new Color(1f, 0.92f, 0.35f, 0.90f);
-            _highlight.endColor    = new Color(1f, 0.92f, 0.35f, 0.90f);
-            _highlight.sortingOrder = 200;
-            _highlight.gameObject.SetActive(false);
+            _highlightSR = go.AddComponent<SpriteRenderer>();
+            // ProcGfx.IsoDiamondEdgeGlow is a 64×32 hollow diamond rim sprite that
+            // fits exactly over one tile (1.0 × 0.5 world units, centre pivot).
+            _highlightSR.sprite       = ProcGfx.IsoDiamondEdgeGlow(new Color(1f, 0.92f, 0.35f, 0.90f), 64, 32, 0.12f);
+            _highlightSR.sortingOrder = 200;
+            go.SetActive(false);
         }
 
         private void UpdateHighlight()
         {
-            if (_highlight == null || _cam == null || _island == null || _player == null
+            if (_highlightSR == null || _cam == null || _island == null || _player == null
                 || _tools == null || _hotbar == null) return;
 
             // Screen → world → grid at the player's current elevation tier.
@@ -174,7 +124,7 @@ namespace SkyHarvest.UI
 
             if (!canInteract)
             {
-                if (_hlVisible) { _highlight.gameObject.SetActive(false); _hlVisible = false; }
+                if (_hlVisible) { _highlightSR.gameObject.SetActive(false); _hlVisible = false; }
                 return;
             }
 
@@ -182,18 +132,10 @@ namespace SkyHarvest.UI
             {
                 _lastCell = gridPos;
                 Vector2 centre = GridMath.GridToWorld(gridPos, _player.CurrentTier);
-                const float z  = -0.2f;   // in front of terrain
-
-                for (int v = 0; v < 4; v++)
-                    _highlight.SetPosition(v, new Vector3(
-                        centre.x + DiamondVerts[v].x,
-                        centre.y + DiamondVerts[v].y, z));
-                _highlight.SetPosition(4, new Vector3(
-                    centre.x + DiamondVerts[0].x,
-                    centre.y + DiamondVerts[0].y, z));
+                _highlightSR.transform.position = new Vector3(centre.x, centre.y, -0.1f);
             }
 
-            if (!_hlVisible) { _highlight.gameObject.SetActive(true); _hlVisible = true; }
+            if (!_hlVisible) { _highlightSR.gameObject.SetActive(true); _hlVisible = true; }
         }
     }
 }

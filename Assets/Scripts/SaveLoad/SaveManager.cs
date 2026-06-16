@@ -60,8 +60,10 @@ namespace SkyHarvest.SaveLoad
 
             if (gm?.CurrentIsland != null)
             {
-                data.Island.Seed   = gm.CurrentIsland.Seed;
-                data.Island.Radius = gm.CurrentIsland.Radius;
+                data.Island.Seed             = gm.CurrentIsland.Seed;
+                data.Island.Radius           = gm.CurrentIsland.Radius;
+                data.Island.IsStarterIsland  = gm.CurrentIsland.IsStarter;
+                data.Island.StairsCarved     = gm.CurrentIsland.StairsCarved;
 
                 foreach (var kvp in gm.CurrentIsland.Cells)
                 {
@@ -146,14 +148,28 @@ namespace SkyHarvest.SaveLoad
             {
                 var pos = player.transform.position;
                 data.Player.PosX = pos.x; data.Player.PosY = pos.y; data.Player.PosZ = pos.z;
+                data.Player.Tier = player.CurrentTier;
                 data.Player.EquippedTool = player.GetComponent<Player.ToolSystem>()?.EquippedToolId ?? "";
 
                 var pic = player.GetComponent<Player.PlayerInventoryComponent>();
+                var hotbar = player.GetComponent<Player.Hotbar>();
+                if (hotbar != null)
+                    data.Player.SelectedHotbarIndex = hotbar.SelectedIndex;
+
                 if (pic != null)
-                    foreach (var slot in pic.Inventory.Slots)
-                        if (!slot.IsEmpty)
-                            data.Player.InventorySlots.Add(new SlotSaveData
-                                { ItemId = slot.ItemId!, Count = slot.Count });
+                {
+                    for (int i = 0; i < pic.Inventory.Slots.Length; i++)
+                    {
+                        var slot = pic.Inventory.Slots[i];
+                        if (slot.IsEmpty) continue;
+                        data.Player.InventorySlots.Add(new SlotSaveData
+                        {
+                            SlotIndex = i,
+                            ItemId    = slot.ItemId!,
+                            Count     = slot.Count
+                        });
+                    }
+                }
             }
 
             return data;

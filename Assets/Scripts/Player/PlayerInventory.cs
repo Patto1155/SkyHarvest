@@ -23,21 +23,47 @@ namespace SkyHarvest.Player
 
         public bool TryAdd(string itemId, int count)
         {
-            var existing = Slots.FirstOrDefault(s => s.ItemId == itemId && !s.IsEmpty);
-            if (existing != null)
+            int max = GetMaxStack(itemId);
+
+            // All-or-nothing: pre-check that enough room exists across all stacks.
+            int capacity = 0;
+            foreach (var s in Slots)
             {
-                existing.Count += count;
-                Core.EventBus.Publish(new Core.InventoryChangedEvent());
-                return true;
+                if (s.IsEmpty) capacity += max;
+                else if (s.ItemId == itemId) capacity += System.Math.Max(0, max - s.Count);
+                if (capacity >= count) break;
+            }
+            if (capacity < count) return false;
+
+            // Commit: fill existing partial stacks first, then open empty slots.
+            int remaining = count;
+            foreach (var s in Slots)
+            {
+                if (remaining <= 0) break;
+                if (s.IsEmpty || s.ItemId != itemId) continue;
+                int add = System.Math.Min(max - s.Count, remaining);
+                if (add <= 0) continue;
+                s.Count += add;
+                remaining -= add;
+            }
+            while (remaining > 0)
+            {
+                var empty = Slots.FirstOrDefault(s => s.IsEmpty);
+                if (empty == null) break;
+                int add = System.Math.Min(max, remaining);
+                empty.ItemId = itemId;
+                empty.Count  = add;
+                remaining   -= add;
             }
 
-            var empty = Slots.FirstOrDefault(s => s.IsEmpty);
-            if (empty == null) return false;
-
-            empty.ItemId = itemId;
-            empty.Count = count;
             Core.EventBus.Publish(new Core.InventoryChangedEvent());
             return true;
+        }
+
+        private static int GetMaxStack(string itemId)
+        {
+            try   { return SkyHarvest.Data.GameDatabase.GetItem(itemId)?.MaxStackSize ?? 99; }
+            catch { return 99; }
         }
 
         public bool TryRemove(string itemId, int count)

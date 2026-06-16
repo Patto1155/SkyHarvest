@@ -31,7 +31,9 @@ namespace SkyHarvest.Core
         private MainMenuUI? _mainMenu;
         private GameObject? _hudCanvas;   // panels live here; needed to find INACTIVE ones
 
-        private UI.GameCursor? _gameCursor;
+        private UI.GameCursor?       _gameCursor;
+        private UI.MinimapController? _minimapCtrl;
+        private GameObject?           _keybindPanel;
 
         private bool _gameStarted;
 
@@ -164,9 +166,9 @@ namespace SkyHarvest.Core
             // ---- Minimap toggle (bottom-right) ----
             var minimapPanel = MakePanel("MinimapPanel", canvasGO.transform, new Vector2(480f, -200f), new Vector2(160f, 120f));
             minimapPanel.SetActive(false);
-            MakeText("MinimapLabel", minimapPanel.transform, Vector2.zero, "Island map\n(MVP)", 12);
             var minimapBtn = MakeButton("Map", canvasGO.transform, new Vector2(520f, -310f));
             minimapBtn.onClick.AddListener(() => minimapPanel.SetActive(!minimapPanel.activeSelf));
+            _minimapCtrl = canvasGO.AddComponent<UI.MinimapController>();
 
             // ---- Inventory panel (5×4 grid) ----
             var invPanel = MakePanel("InventoryPanel", canvasGO.transform, new Vector2(0f, 0f),
@@ -246,6 +248,29 @@ namespace SkyHarvest.Core
             MakeButton("Save",      pausePanel.transform, new Vector2(0f,  20f)).onClick.AddListener(_pauseMenu.OnSaveClicked);
             MakeButton("Save+Quit", pausePanel.transform, new Vector2(0f, -40f)).onClick.AddListener(_pauseMenu.OnSaveAndQuitClicked);
 
+            // ---- Keybind help overlay (H to toggle) ----
+            _keybindPanel = MakePanel("KeybindPanel", canvasGO.transform, Vector2.zero, new Vector2(420f, 340f));
+            _keybindPanel.SetActive(false);
+            var kbText = MakeText("KeybindText", _keybindPanel.transform, new Vector2(0f, 10f), "", 13);
+            kbText.alignment  = TextAnchor.UpperLeft;
+            kbText.lineSpacing = 1.3f;
+            var kbRT = kbText.GetComponent<RectTransform>();
+            kbRT.sizeDelta = new Vector2(380f, 300f);
+            kbText.text =
+                "  CONTROLS\n" +
+                "  ─────────────────────────────\n" +
+                "  WASD / Arrows   Move\n" +
+                "  E               Interact / Till / Carve stairs\n" +
+                "  Q               Inspect target\n" +
+                "  Tab             Toggle inventory\n" +
+                "  B               Toggle build mode\n" +
+                "  1-9, 0          Select hotbar slot\n" +
+                "  Scroll wheel    Cycle hotbar\n" +
+                "  M               Toggle minimap\n" +
+                "  H               This help screen\n" +
+                "  Esc             Close panel / Pause";
+            MakeText("KeybindTitle", _keybindPanel.transform, new Vector2(0f, 150f), "CONTROLS", 18).fontStyle = FontStyle.Bold;
+
             // ---- Game cursor (hides OS cursor; drawn last so it's always on top) ----
             _gameCursor = canvasGO.AddComponent<UI.GameCursor>();
             var hudCam  = Object.FindObjectOfType<Camera>();
@@ -324,14 +349,31 @@ namespace SkyHarvest.Core
             var data = SaveManager.Instance?.Load();
             if (data == null) { StartNewGame(); return; }
 
-            var island = IslandGenerator.Generate(data.Island.Seed, data.Island.Radius);
+            // PR 2: restore the designed starter island (not a procedural one) when the
+            // save was made on the starter island, so stairs / tier layout are preserved.
+            IslandData island;
+            if (data.Island.IsStarterIsland)
+            {
+                island = StarterIsland.Build(data.Island.Seed);
+                if (data.Island.StairsCarved)
+                    island.CarveStairs(StarterIsland.FrontStairCell);
+            }
+            else
+            {
+                island = IslandGenerator.Generate(data.Island.Seed, data.Island.Radius);
+            }
+
             _gm?.SetIsland(island);
             _islandRenderer?.Render(island);
 
             SaveManager.Instance?.ApplySaveData(data, island);
 
             SpawnPlayer(new Vector3(data.Player.PosX, data.Player.PosY, data.Player.PosZ));
-            if (_player != null) _player.Island = island;
+            if (_player != null)
+            {
+                _player.Island      = island;
+                _player.CurrentTier = data.Player.Tier;  // restore tier before any collision checks
+            }
             WireUIToPlayer();
             WireBuildMode(island);
 
@@ -565,6 +607,10 @@ namespace SkyHarvest.Core
             var hotbar = _player.GetComponent<Player.Hotbar>();
             if (tools != null && hotbar != null)
                 _gameCursor.SetGameRefs(island, _player, tools, hotbar);
+
+            var minimapPanel = FindPanel("MinimapPanel");
+            if (_minimapCtrl != null && minimapPanel != null)
+                _minimapCtrl.Initialize(minimapPanel, island, _player);
         }
 
         private void WireBuildMode(IslandData island)
@@ -591,6 +637,17 @@ namespace SkyHarvest.Core
                 else              { bmc.EnterBuildMode(); _buildMenu?.Open(); }
             }
 
+            // H: toggle keybind help overlay
+            if (Input.GetKeyDown(KeyCode.H) && _keybindPanel != null)
+                _keybindPanel.SetActive(!_keybindPanel.activeSelf);
+
+            // M: toggle minimap
+            if (Input.GetKeyDown(KeyCode.M))
+            {
+                var mm = FindPanel("MinimapPanel");
+                if (mm != null) mm.SetActive(!mm.activeSelf);
+            }
+
             // Tab: close storage if open, otherwise toggle the player's pack
             if (Input.GetKeyDown(KeyCode.Tab))
             {
@@ -601,7 +658,8 @@ namespace SkyHarvest.Core
             // Esc: close the topmost open thing; pause only when nothing is open
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if      (_buildMenu != null && _buildMenu.IsOpen)     { _buildMenu.Close(); bmc?.ExitBuildMode(); }
+                if      (_keybindPanel != null && _keybindPanel.activeSelf) _keybindPanel.SetActive(false);
+                else if (_buildMenu != null && _buildMenu.IsOpen)     { _buildMenu.Close(); bmc?.ExitBuildMode(); }
                 else if (bmc != null && bmc.IsActive)                 bmc.ExitBuildMode();
                 else if (_storageUI != null && _storageUI.IsOpen)     _storageUI.Close();
                 else if (_workshopUI != null && _workshopUI.IsOpen)   _workshopUI.Close();

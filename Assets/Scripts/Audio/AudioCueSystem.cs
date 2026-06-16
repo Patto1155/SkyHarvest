@@ -26,6 +26,9 @@ namespace SkyHarvest.Audio
             EventBus.Subscribe<DebrisScavengedEvent>(_ => PlayScavenge());
             EventBus.Subscribe<StructurePlacedEvent>(_ => PlayBuild());
             EventBus.Subscribe<WeatherChangedEvent>(e  => OnWeatherChanged(e.Current));
+            // Start ambient on game launch — WeatherChangedEvent may fire before AudioCueSystem
+            // is ready, so we also respond to GameStartedEvent to guarantee the drone plays.
+            EventBus.Subscribe<GameStartedEvent>(_ => OnGameStarted());
         }
 
         private void OnDestroy()
@@ -45,6 +48,12 @@ namespace SkyHarvest.Audio
         private void PlayRuin()         => PlayTone(180f, 0.08f, 0.18f);
         private void PlayScavenge()     => PlayTone(550f, 0.06f, 0.12f);
         private void PlayBuild()        => PlayTone(370f, 0.07f, 0.10f);
+
+        private void OnGameStarted()
+        {
+            var wm = Weather.WeatherManager.Instance;
+            if (wm != null) OnWeatherChanged(wm.CurrentWeather);
+        }
 
         private void OnWeatherChanged(WeatherType weather)
         {
