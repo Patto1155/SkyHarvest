@@ -207,10 +207,12 @@ namespace SkyHarvest.Core
 
                     if (stair)
                     {
-                        int stepH = Mathf.Max(4, faceHeightPx / 5);
+                        int stepH = Mathf.Max(5, faceHeightPx / 4);
                         int within = b % stepH;
-                        if (within == 0)              c = Color.Lerp(c, Color.white, 0.30f);
-                        else if (within == stepH - 1) c = Color.Lerp(c, Color.black, 0.40f);
+                        if (within == 0)              c = Color.Lerp(c, new Color(0.72f, 0.62f, 0.48f), 0.55f);
+                        else if (within == stepH - 1) c = Color.Lerp(c, new Color(0.12f, 0.10f, 0.08f), 0.45f);
+                        // Vertical timber plank seams on the tread face
+                        if (x % 6 == 0) c = Color.Lerp(c, Color.black, 0.12f);
                     }
                     else
                     {
@@ -270,34 +272,28 @@ namespace SkyHarvest.Core
                 filterMode = FilterMode.Point
             };
             var px = new Color[size * size];
-            for (int y = 0; y < size; y++)
-            for (int x = 0; x < size; x++)
+            for (int i = 0; i < px.Length; i++) px[i] = Color.clear;
+
+            void StampArrow(int ox, int oy, Color inside, Color edge)
             {
-                // NW-pointing arrow mask (tip at top-left).
-                bool inside =
-                    (x <= 1 && y >= size - 2) ||
-                    (x <= 2 && y >= size - 4 && y <= size - 2) ||
-                    (x <= 3 && y >= size - 6 && y <= size - 3) ||
-                    (x <= 4 && y >= size - 8 && y <= size - 4) ||
-                    (x <= 5 && y >= size - 10 && y <= size - 5) ||
-                    (x <= 6 && y >= size - 12 && y <= size - 6) ||
-                    (x <= 7 && y >= size - 14 && y <= size - 7) ||
-                    (x <= 8 && y >= size - 16 && y <= size - 8);
-
-                bool border = false;
-                if (inside)
+                for (int y = 0; y < size; y++)
+                for (int x = 0; x < size; x++)
                 {
-                    bool n = x > 0 && IsCursorArrowPixel(x - 1, y, size);
-                    bool s = y < size - 1 && IsCursorArrowPixel(x, y + 1, size);
-                    bool e = x < size - 1 && IsCursorArrowPixel(x + 1, y, size);
-                    bool w = y > 0 && IsCursorArrowPixel(x, y - 1, size);
-                    border = !n || !s || !e || !w;
+                    int sx = x - ox, sy = y - oy;
+                    if (!IsCursorArrowPixel(sx, sy, size)) continue;
+                    bool border =
+                        !IsCursorArrowPixel(sx - 1, sy, size) ||
+                        !IsCursorArrowPixel(sx + 1, sy, size) ||
+                        !IsCursorArrowPixel(sx, sy - 1, size) ||
+                        !IsCursorArrowPixel(sx, sy + 1, size);
+                    px[y * size + x] = border ? edge : inside;
                 }
-
-                if (!inside) px[y * size + x] = Color.clear;
-                else if (border) px[y * size + x] = Color.white;
-                else px[y * size + x] = fill;
             }
+
+            // Drop shadow so the pointer reads on dark menu backgrounds.
+            StampArrow(1, -1, new Color(0f, 0f, 0f, 0.85f), new Color(0f, 0f, 0f, 0.95f));
+            StampArrow(0, 0, fill, Color.white);
+
             tex.SetPixels(px);
             tex.Apply();
             return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0f, 1f), 100f);

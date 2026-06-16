@@ -1,7 +1,11 @@
 # Workflow — exact commands
 
 Repo root: `D:\APATPROJECTS\SkyHarvest`. Unity `2022.3.45f1` at `D:/Unity/Hub/Editor/2022.3.45f1/Editor/Unity.exe`.
-`dotnet` = `~/.dotnet/dotnet.exe` (.NET 8). NOT `C:\Program Files\dotnet` (only SDK 3.1, fails).
+`dotnet` = `~/.dotnet/dotnet.exe` (.NET 8 SDK 8.0.x, installed). The machine ALSO has
+`C:\Program Files\dotnet` on PATH but that's only **SDK 3.1**, which fails the net8.0 stub
+projects with `MSB3644`. `tools/check.sh` now **auto-locates `~/.dotnet/dotnet.exe`**, so it
+works with no PATH tweak — if a past note says ".NET 8 isn't installed", that was a PATH
+mistake, not a missing SDK. For manual `dotnet` calls, use `~/.dotnet/dotnet.exe` explicitly.
 
 ## THE gotcha: Unity admin dialog
 
@@ -13,9 +17,14 @@ This machine's only account is `Administrator`, so **every GUI Unity launch show
 ## Fast logic loop (no Unity, ~10s)
 
 ```bash
-export PATH="/c/Users/Administrator/.dotnet:$PATH"
-bash tools/check.sh          # 73 NUnit tests against Unity stubs
+bash tools/check.sh          # NUnit tests against Unity stubs (123 currently)
 ```
+
+`check.sh` self-locates the .NET 8 SDK — no `export PATH` needed. If it reports
+`error CS...` for a NEW UI script, the stub may be missing a Unity member: add it to
+`tools/clr-harness/UnityStubs/Stubs.*.cs` (e.g. `PointerEventData.button`,
+`RectTransformUtility`). Keeping the stubs complete is what lets the fast loop catch
+compile errors in new UI code before a 6-min Unity run.
 
 ## Full validation before handoff (~1 min, batchmode, no dialog)
 
@@ -92,6 +101,36 @@ it with a generous tool timeout (~8 min); it's a cold Unity boot each time.
 (batchmode OR `shot.sh`) imports it but compiles too late → `CS0103 'X' does not exist`.
 Just run the SAME command again; the second run compiles clean. Editing an EXISTING file
 is single-pass. (Same root cause as the `validate.sh` first-run import.)
+
+## Sprite art pipeline (Python/PIL — `tools/spritegen/`)
+
+All in-game sprites are **procedurally drawn pixel art** (NOT AI-generated), written to
+`Assets/Resources/Sprites/**` and loaded at runtime by `SpriteLoader` at PPU 64, pivot
+bottom-centre. Per-module generators: `terrain/player/crops/structures/items/ui/fx/bg`.
+
+Regenerate everything: `python -m tools.spritegen.generate_all`
+Regenerate one module (fast): `python -c "from tools.spritegen import structures; structures.generate()"`
+Render + view ONE sprite while iterating (don't regen the whole set):
+```bash
+python -c "from tools.spritegen import structures, core; \
+  core.save_strip(structures.forge(),'structures/forge.png',128,128)"
+# then Read Assets/Resources/Sprites/structures/forge.png (zoom via PIL .resize NEAREST)
+```
+
+**Isometric volume primitives (`tools/spritegen/core.py`)** — structures are drawn as 2:1
+dimetric VOLUMES sitting on the 64×32 tile diamond, NOT flat front elevations. Use:
+- `iso_box(c, cx, base_y, hw, hh, height, top, left, right)` — a prism (crate, posts, anvil).
+- `iso_frustum(c, cx, base_y, hw_b, hh_b, hw_t, hh_t, height, top, left, right)` — a tapered
+  box; `hw_t<hw_b` narrows (furnace/tower), `hw_t>hw_b` flares (funnel/barrel belly).
+- `iso_top(c, cx, base_y, hw, hh, height, fn)` — a single diamond face (platform, lid, water).
+- `fill_poly(c, [pts], fn)` — arbitrary convex iso face (roofs, A-frames, nets).
+
+Face fns take **`(x, y, v)`** (screen x/y + v=0 at base→1 at top) or a flat colour. Light is
+upper-LEFT: top brightest, left face mid, right face shadowed. Ready-made face painters:
+`iso_stone_faces(ramp)`, `iso_plank_faces(ramp)`, `iso_metal_faces(ramp)` in `structures.py`.
+`WARMSTONE_R` = the weathered warm furnace-stone ramp. The forge is the reference example
+(tapered frustum body + voussoir arch via `_in_open`/`_in_outer` + centred hooded chimney).
+`path` stays a flat ground overlay (correct — it lies on the tile, no volume).
 
 ## Delegate screenshot review to Haiku (token-efficient)
 

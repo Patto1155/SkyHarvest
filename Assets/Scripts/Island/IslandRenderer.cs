@@ -51,6 +51,11 @@ namespace SkyHarvest.Island
         // Public API
         // -------------------------------------------------------------------------
 
+        private void OnEnable()  => EventBus.Subscribe<StairsCarvedEvent>(OnStairsCarved);
+        private void OnDisable() => EventBus.Unsubscribe<StairsCarvedEvent>(OnStairsCarved);
+
+        private void OnStairsCarved(StairsCarvedEvent _) => RefreshTierWalls();
+
         /// <summary>
         /// Build the full island visual from scratch.
         /// Called by Bootstrap / GameManager after Generate().
@@ -85,7 +90,8 @@ namespace SkyHarvest.Island
         /// <summary>
         /// Draw a cliff face on each diamond edge whose camera-facing neighbour is a
         /// lower tier, so the raised tier connects down to the lower one edge-to-edge.
-        /// The high side of a registered stair edge gets the carved-stair face.
+        /// The high side of a registered stair edge gets the carved-stair face only
+        /// after <see cref="IslandData.StairsCarved"/>; until then it shows as a solid wall.
         /// Also draws tall rocky rim faces on every void-facing outer edge so the
         /// island reads as a floating chunk of land.
         /// </summary>
@@ -104,7 +110,7 @@ namespace SkyHarvest.Island
                 if (_island.IsValidPosition(sw))
                 {
                     if (myTier > _island.Tier(sw))
-                        AddTierFace(cell, stair: _island.IsStairEdge(pos, sw), rightSide: false);
+                        AddTierFace(cell, stair: ShowCarvedStairFace(pos, sw), rightSide: false);
                 }
                 else
                 {
@@ -116,11 +122,37 @@ namespace SkyHarvest.Island
                 if (_island.IsValidPosition(se))
                 {
                     if (myTier > _island.Tier(se))
-                        AddTierFace(cell, stair: _island.IsStairEdge(pos, se), rightSide: true);
+                        AddTierFace(cell, stair: ShowCarvedStairFace(pos, se), rightSide: true);
                 }
                 else
                 {
                     AddRimFace(cell, rightSide: true);
+                }
+            }
+        }
+
+        private bool ShowCarvedStairFace(Vector2Int high, Vector2Int low) =>
+            _island != null && _island.StairsCarved && _island.IsStairEdge(high, low);
+
+        /// <summary>Rebuild cliff/stair faces after the tutorial mine (wall → steps).</summary>
+        public void RefreshTierWalls()
+        {
+            ClearTierFaces();
+            BuildTierWalls();
+        }
+
+        private void ClearTierFaces()
+        {
+            foreach (var vis in _visuals.Values)
+            {
+                if (vis.Root == null) continue;
+                var t = vis.Root.transform;
+                for (int i = t.childCount - 1; i >= 0; i--)
+                {
+                    var child = t.GetChild(i);
+                    var n = child.name;
+                    if (n == "WallFace" || n == "StairFace" || n == "RimFace")
+                        Destroy(child.gameObject);
                 }
             }
         }

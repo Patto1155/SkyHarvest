@@ -379,10 +379,13 @@ namespace UnityEngine.EventSystems
 
     public partial class PointerEventData
     {
+        public enum InputButton { Left = 0, Right = 1, Middle = 2 }
+
         public UnityEngine.Vector2 position { get; set; }
         public UnityEngine.GameObject? pointerEnter { get; set; }
         public UnityEngine.GameObject? pointerCurrentRaycast { get; set; }
         public int pointerId { get; set; }
+        public InputButton button { get; set; }
         public bool IsScrolling() => false;
     }
 
@@ -397,6 +400,13 @@ namespace UnityEngine.EventSystems
     public interface IDropHandler { void OnDrop(PointerEventData eventData); }
     public interface IScrollHandler { void OnScroll(PointerEventData eventData); }
 
+}
+
+namespace UnityEngine
+{
+    // Real Unity exposes RectTransformUtility in the UnityEngine namespace, not
+    // UnityEngine.EventSystems — GameCursor.cs (which only `using`s UnityEngine +
+    // UnityEngine.UI) couldn't see it otherwise.
     public static class RectTransformUtility
     {
         public static bool ScreenPointToLocalPointInRectangle(

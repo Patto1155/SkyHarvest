@@ -309,6 +309,121 @@ class Canvas:
 
 
 # ---------------------------------------------------------------------------
+# Isometric volume primitives (2:1 dimetric — matches the 64x32 tile diamond)
+#
+# A box "sits" on a diamond footprint whose BOTTOM vertex is at (cx, base_y).
+# half_w/half_h are the footprint half-extents (use 32/16 for a full 1x1 tile).
+# `height` is how many pixels the box rises. Faces are passed as either a flat
+# RGB(A) colour or a callable f(u, v) -> colour, with u across the face [0..1]
+# and v up the face [0..1] (v=0 at the base, 1 at the top) so callers can paint
+# planks / stone / grain per face. Light convention = upper-LEFT, matching the
+# rest of the art: top brightest, left face mid, right face darkest.
+# ---------------------------------------------------------------------------
+def _rcol(col, x, y, v):
+    """Resolve a face colour: either a flat RGB(A) tuple or a callable f(x, y, v)."""
+    return col(x, y, v) if callable(col) else col
+
+
+def iso_face_left(canvas, cx, base_y, half_w, half_h, height, col):
+    """Left-front face: the footprint edge from the left vertex to the bottom vertex, extruded up."""
+    for x in range(cx - half_w, cx + 1):
+        u = (x - (cx - half_w)) / half_w if half_w else 0.0
+        by = (base_y - half_h) + u * half_h          # bottom edge slopes down toward cx
+        top = by - height
+        span = by - top
+        for yy in range(int(round(top)), int(round(by)) + 1):
+            v = (by - yy) / span if span else 0.0
+            canvas.set(x, yy, _rcol(col, x, yy, v))
+
+
+def iso_face_right(canvas, cx, base_y, half_w, half_h, height, col):
+    """Right-front face: bottom vertex to right vertex, extruded up."""
+    for x in range(cx, cx + half_w + 1):
+        u = (x - cx) / half_w if half_w else 0.0
+        by = base_y - u * half_h                      # bottom edge slopes up toward the right vertex
+        top = by - height
+        span = by - top
+        for yy in range(int(round(top)), int(round(by)) + 1):
+            v = (by - yy) / span if span else 0.0
+            canvas.set(x, yy, _rcol(col, x, yy, v))
+
+
+def iso_top(canvas, cx, base_y, half_w, half_h, height, col):
+    """Top diamond face, lifted `height` px above the footprint."""
+    bottom_vy = base_y - height
+    top_y = bottom_vy - 2 * half_h
+    for row in range(2 * half_h + 1):
+        y = top_y + row
+        d = abs(row - half_h)
+        frac = 1.0 - d / half_h if half_h else 0.0
+        xext = int(round(half_w * frac))
+        for x in range(cx - xext, cx + xext + 1):
+            vv = row / (2 * half_h) if half_h else 0.0
+            canvas.set(x, y, _rcol(col, x, y, vv))
+
+
+def iso_box(canvas, cx, base_y, half_w, half_h, height,
+            top, left, right, draw_top=True):
+    """Draw a full iso box. Faces drawn back-to-front so the top reads cleanly."""
+    iso_face_left(canvas, cx, base_y, half_w, half_h, height, left)
+    iso_face_right(canvas, cx, base_y, half_w, half_h, height, right)
+    if draw_top:
+        iso_top(canvas, cx, base_y, half_w, half_h, height, top)
+
+
+def fill_poly(canvas, pts, color_fn):
+    """Scanline-fill a convex polygon. color_fn(x, y) -> colour (or a flat colour)."""
+    flat = color_fn if callable(color_fn) else (lambda x, y: color_fn)
+    ys = [p[1] for p in pts]
+    y0, y1 = int(math.floor(min(ys))), int(math.ceil(max(ys)))
+    n = len(pts)
+    for y in range(y0, y1 + 1):
+        xs = []
+        for i in range(n):
+            ax, ay = pts[i]
+            bx, by = pts[(i + 1) % n]
+            if (ay <= y < by) or (by <= y < ay):
+                t = (y - ay) / (by - ay)
+                xs.append(ax + (bx - ax) * t)
+        if not xs:
+            continue
+        xl, xr = int(round(min(xs))), int(round(max(xs)))
+        for x in range(xl, xr + 1):
+            canvas.set(x, y, flat(x, y))
+
+
+def iso_frustum(canvas, cx, base_y, hw_b, hh_b, hw_t, hh_t, height,
+                top, left, right, draw_top=True):
+    """Tapered iso box (a frustum): top diamond smaller than the bottom, centred
+    over it. Faces are trapezoids. Face fns take (x, y, v) with v=0 at the base
+    and v=1 at the top; `top` takes (x, y, v) with v across the diamond depth.
+    Use for furnace / kiln / barrel-ish bodies that narrow as they rise."""
+    cyb = base_y - hh_b              # bottom diamond centre
+    cyt = cyb - height               # top diamond centre
+    Bb = (cx, base_y)
+    Lb = (cx - hw_b, cyb)
+    Rb = (cx + hw_b, cyb)
+    Bt = (cx, cyt + hh_t)
+    Lt = (cx - hw_t, cyt)
+    Rt = (cx + hw_t, cyt)
+    Tt = (cx, cyt - hh_t)
+
+    def _wrap(fn, ymin, ymax):
+        if not callable(fn):
+            return lambda x, y: fn
+        span = max(1, ymax - ymin)
+        return lambda x, y: fn(x, y, (ymax - y) / span)
+
+    # left-front trapezoid
+    fill_poly(canvas, [Lb, Bb, Bt, Lt], _wrap(left, min(Lt[1], Bt[1]), max(Lb[1], Bb[1])))
+    # right-front trapezoid
+    fill_poly(canvas, [Bb, Rb, Rt, Bt], _wrap(right, min(Bt[1], Rt[1]), max(Bb[1], Rb[1])))
+    if draw_top:
+        fill_poly(canvas, [Lt, Tt, Rt, Bt], _wrap(top, Tt[1], Bt[1]))
+    return dict(cyt=cyt, hw_t=hw_t, hh_t=hh_t)
+
+
+# ---------------------------------------------------------------------------
 # Dithering patterns (Bayer-style, deterministic, hard pixels)
 # ---------------------------------------------------------------------------
 _BAYER4 = [

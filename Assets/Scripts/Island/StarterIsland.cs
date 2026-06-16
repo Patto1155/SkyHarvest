@@ -36,7 +36,13 @@ namespace SkyHarvest.Island
             for (int gy = 0; gy < Depth; gy++)
             {
                 bool back = IsBackTier(gy);
-                var terrain = back ? TerrainType.RockyPlateau : TerrainType.FertileValley;
+                // Front-row outer corners are the dangerous cliff lip: debris tumbles in
+                // here and Skynet can be planted to catch it. Kept off the (1,3) spawn cell
+                // and off every cell referenced by TierGateTests so the tier gate is untouched.
+                bool frontCliff = !back && gy == Depth - 1 && (gx == 0 || gx == Width - 1);
+                var terrain = back        ? TerrainType.RockyPlateau
+                            : frontCliff  ? TerrainType.CliffEdge
+                                          : TerrainType.FertileValley;
                 var pos = new Vector2Int(gx, gy);
                 island.Cells[pos] = new IslandCell
                 {

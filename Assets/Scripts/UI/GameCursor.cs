@@ -22,7 +22,8 @@ namespace SkyHarvest.UI
         private Hotbar?           _hotbar;
 
         // ---- cursor UI ----
-        private RectTransform? _cursorRT;
+        private Canvas?          _cursorCanvas;
+        private RectTransform?   _cursorRT;
 
         // ---- tile highlight (world-space SpriteRenderer) ----
         private SpriteRenderer? _highlightSR;
@@ -36,6 +37,15 @@ namespace SkyHarvest.UI
         {
             _cam       = cam;
             _hudCanvas = hudCanvas;
+
+            // Own overlay canvas above MainMenuCanvas (sortingOrder 100) so the pointer
+            // is visible on the title screen — the HUD canvas sits underneath the menu.
+            var canvasGO = new GameObject("CursorCanvas");
+            _cursorCanvas = canvasGO.AddComponent<Canvas>();
+            _cursorCanvas.renderMode   = RenderMode.ScreenSpaceOverlay;
+            _cursorCanvas.sortingOrder = 200;
+            canvasGO.AddComponent<CanvasScaler>();
+
             Cursor.visible = false;
             BuildCursorSprite();
             BuildHighlight();
@@ -68,25 +78,23 @@ namespace SkyHarvest.UI
         {
             var go = new GameObject("CustomCursor",
                 typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-            go.transform.SetParent(_hudCanvas!.transform, false);
+            go.transform.SetParent(_cursorCanvas!.transform, false);
             go.transform.SetAsLastSibling();
 
             _cursorRT = go.GetComponent<RectTransform>();
-            _cursorRT.sizeDelta = new Vector2(18f, 18f);
+            _cursorRT.sizeDelta = new Vector2(24f, 24f);
             _cursorRT.pivot     = new Vector2(0f, 1f);  // top-left = cursor tip
 
             var img = go.GetComponent<Image>();
-            // ProcGfx.CursorPointer draws a proper NW-pointing Terraria-style arrow
-            // with white border and sky-blue fill, pivot pinned at the tip.
-            img.sprite        = ProcGfx.CursorPointer(new Color(0.31f, 0.78f, 1f), 18);
+            img.sprite        = ProcGfx.CursorPointer(new Color(0.45f, 0.88f, 1f), 24);
             img.raycastTarget = false;
         }
 
         private void MoveCursor()
         {
-            if (_cursorRT == null || _hudCanvas == null) return;
+            if (_cursorRT == null || _cursorCanvas == null) return;
             RectTransformUtility.ScreenPointToLocalPointInRectangle(
-                _hudCanvas.transform as RectTransform,
+                _cursorCanvas.transform as RectTransform,
                 Input.mousePosition, null, out var local);
             _cursorRT.anchoredPosition = local;
         }

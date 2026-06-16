@@ -14,7 +14,7 @@ namespace SkyHarvest.Building
     {
         public ConstructionProgress Progress { get; private set; } = null!;
 
-        private static readonly Color SiteTint = new Color(1f, 1f, 1f, 0.45f);
+        private static readonly Color SiteTint = new Color(0.92f, 0.95f, 1f, 0.72f);
 
         public override string InteractionPrompt
         {

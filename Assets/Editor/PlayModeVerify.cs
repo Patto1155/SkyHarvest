@@ -249,8 +249,41 @@ public static class PlayModeVerify
         var cell = FindCropCell();
         _plot = FarmingActions.TryTill(cell, _island, UnityEngine.Object.FindObjectOfType<IslandRenderer>());
         if (_plot == null) { Fail("Till + sow", $"TryTill returned null on {cell?.Terrain}"); return; }
-        FarmingActions.TrySow(_plot, _player);
-        Check("Till + sow", _plot.Crop != null, $"crop={_plot.Crop?.CropId}");
+
+        // Sowing requires the seed to be the SELECTED hotbar item (StepTools leaves slot 0
+        // = Hoe selected). StepSetup's wheat_seed can merge into a backpack stack, so locate
+        // it anywhere and move it into a free hotbar slot before selecting it.
+        const string seedId = "wheat_seed";
+        var inv    = _player.Inventory;
+        var hotbar = _player.GetComponent<Hotbar>();
+        int seedSlot = FindSlotWithItem(inv, seedId);
+        if (seedSlot < 0) { Fail("Till + sow", $"{seedId} not in inventory"); return; }
+        if (seedSlot >= PlayerInventoryComponent.HotbarSlots)
+        {
+            int free = FirstEmptyHotbarSlot(inv);
+            if (free < 0) { Fail("Till + sow", "no free hotbar slot for seed"); return; }
+            inv.SwapSlots(seedSlot, free);
+            seedSlot = free;
+        }
+        hotbar.SelectSlot(seedSlot);
+
+        bool sown = FarmingActions.TrySow(_plot, _player, seedId);
+        Check("Till + sow", sown && _plot.Crop != null,
+            $"sown={sown}, seedSlot={seedSlot}, crop={_plot.Crop?.CropId}");
+    }
+
+    private static int FindSlotWithItem(Inventory inv, string itemId)
+    {
+        for (int i = 0; i < inv.Slots.Length; i++)
+            if (!inv.Slots[i].IsEmpty && inv.Slots[i].ItemId == itemId) return i;
+        return -1;
+    }
+
+    private static int FirstEmptyHotbarSlot(Inventory inv)
+    {
+        for (int i = 0; i < PlayerInventoryComponent.HotbarSlots; i++)
+            if (inv.Slots[i].IsEmpty) return i;
+        return -1;
     }
 
     private static void StepGrow()
