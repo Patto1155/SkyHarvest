@@ -155,4 +155,64 @@ public class InventoryTests
         Assert.AreEqual(3, _inv.Slots[0].Count);
         Assert.AreEqual("scrap", _inv.Slots[0].ItemId);
     }
+
+    [Test]
+    public void TryQuickMove_Hotbar_To_First_Empty_Backpack_Slot()
+    {
+        const int hotbar = PlayerInventoryComponent.HotbarSlots;
+        var inv = new Inventory(PlayerInventoryComponent.TotalSlots);
+        inv.Slots[0].ItemId = "wood";
+        inv.Slots[0].Count  = 4;
+
+        Assert.IsTrue(inv.TryQuickMove(0, hotbar, PlayerInventoryComponent.TotalSlots));
+        Assert.IsTrue(inv.Slots[0].IsEmpty);
+        Assert.AreEqual("wood", inv.Slots[hotbar].ItemId);
+        Assert.AreEqual(4, inv.Slots[hotbar].Count);
+    }
+
+    [Test]
+    public void TryQuickMove_Backpack_To_First_Empty_Hotbar_Slot()
+    {
+        const int hotbar = PlayerInventoryComponent.HotbarSlots;
+        var inv = new Inventory(PlayerInventoryComponent.TotalSlots);
+        inv.Slots[hotbar].ItemId = "scrap";
+        inv.Slots[hotbar].Count  = 2;
+
+        Assert.IsTrue(inv.TryQuickMove(hotbar, 0, hotbar));
+        Assert.IsTrue(inv.Slots[hotbar].IsEmpty);
+        Assert.AreEqual("scrap", inv.Slots[0].ItemId);
+        Assert.AreEqual(2, inv.Slots[0].Count);
+    }
+
+    [Test]
+    public void TryQuickMove_Merges_Into_Partial_Stack_Before_Empty()
+    {
+        const int hotbar = PlayerInventoryComponent.HotbarSlots;
+        var inv = new Inventory(PlayerInventoryComponent.TotalSlots);
+        inv.Slots[0].ItemId = "wood";
+        inv.Slots[0].Count  = 3;
+        inv.Slots[hotbar].ItemId = "wood";
+        inv.Slots[hotbar].Count  = 2;
+
+        Assert.IsTrue(inv.TryQuickMove(0, hotbar, PlayerInventoryComponent.TotalSlots));
+        Assert.IsTrue(inv.Slots[0].IsEmpty);
+        Assert.AreEqual(5, inv.Slots[hotbar].Count);
+    }
+
+    [Test]
+    public void TryQuickMove_No_Room_Returns_False()
+    {
+        const int hotbar = PlayerInventoryComponent.HotbarSlots;
+        var inv = new Inventory(PlayerInventoryComponent.TotalSlots);
+        inv.Slots[0].ItemId = "wood";
+        inv.Slots[0].Count  = 1;
+        for (int i = hotbar; i < PlayerInventoryComponent.TotalSlots; i++)
+        {
+            inv.Slots[i].ItemId = "scrap";
+            inv.Slots[i].Count  = 1;
+        }
+
+        Assert.IsFalse(inv.TryQuickMove(0, hotbar, PlayerInventoryComponent.TotalSlots));
+        Assert.AreEqual("wood", inv.Slots[0].ItemId);
+    }
 }

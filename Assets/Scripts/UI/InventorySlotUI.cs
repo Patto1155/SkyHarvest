@@ -17,7 +17,11 @@ namespace SkyHarvest.UI
         public void OnPointerClick(PointerEventData eventData)
         {
             if (eventData.button != PointerEventData.InputButton.Left) return;
-            _manager?.OnSlotClick(_inventoryIndex);
+            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+            if (shift)
+                _manager?.OnSlotShiftClick(_inventoryIndex);
+            else
+                _manager?.OnSlotClick(_inventoryIndex);
         }
     }
 }

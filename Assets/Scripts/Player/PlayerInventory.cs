@@ -140,6 +140,58 @@ namespace SkyHarvest.Player
             return (swapId, swapCount);
         }
 
+        /// <summary>
+        /// Shift-click quick move: merge into partial stacks in [targetStart, targetEnd), then fill empty slots.
+        /// Returns false when nothing moved.
+        /// </summary>
+        public bool TryQuickMove(int fromIndex, int targetStart, int targetEnd)
+        {
+            if (fromIndex < 0 || fromIndex >= Slots.Length) return false;
+            if (targetStart < 0 || targetEnd > Slots.Length || targetStart >= targetEnd) return false;
+            if (fromIndex >= targetStart && fromIndex < targetEnd) return false;
+
+            var src = Slots[fromIndex];
+            if (src.IsEmpty) return false;
+
+            string itemId   = src.ItemId;
+            int remaining   = src.Count;
+            int max         = GetMaxStack(itemId);
+
+            for (int i = targetStart; i < targetEnd && remaining > 0; i++)
+            {
+                var dst = Slots[i];
+                if (dst.IsEmpty || dst.ItemId != itemId) continue;
+                int room = max - dst.Count;
+                if (room <= 0) continue;
+                int add = System.Math.Min(room, remaining);
+                dst.Count += add;
+                remaining -= add;
+            }
+
+            for (int i = targetStart; i < targetEnd && remaining > 0; i++)
+            {
+                var dst = Slots[i];
+                if (!dst.IsEmpty) continue;
+                int add = System.Math.Min(max, remaining);
+                dst.ItemId = itemId;
+                dst.Count  = add;
+                remaining -= add;
+            }
+
+            if (remaining == src.Count) return false;
+
+            if (remaining <= 0)
+            {
+                src.ItemId = null;
+                src.Count  = 0;
+            }
+            else
+                src.Count = remaining;
+
+            Core.EventBus.Publish(new Core.InventoryChangedEvent());
+            return true;
+        }
+
         /// <summary>Move or swap stacks between two slots without using a cursor.</summary>
         public void SwapSlots(int from, int to)
         {
