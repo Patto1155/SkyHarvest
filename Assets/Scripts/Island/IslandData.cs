@@ -45,6 +45,29 @@ namespace SkyHarvest.Island
         /// </summary>
         public bool IsWalkable(Vector2Int pos) => IsValidPosition(pos);
 
+        /// <summary>True when a world point is on a tier diamond or a carved stair corridor.</summary>
+        public bool IsWalkableAt(Vector2 world, int tier)
+        {
+            if (StairsCarved)
+            {
+                foreach (var (a, b) in _stairEdges)
+                {
+                    if (StairWalkMath.InCorridor(world, a, b, this))
+                        return true;
+                }
+            }
+
+            var cell = GridMath.WorldToGrid(world, tier);
+            if (IsValidPosition(cell) && Tier(cell) == tier &&
+                GridMath.ContainsDiamond(world, cell, tier))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>Enumerate registered stair connections (for debug overlays).</summary>
+        public IEnumerable<(Vector2Int A, Vector2Int B)> EachStairEdge() => _stairEdges;
+
         // -------------------------------------------------------------------
         // Two-tier traversal + mineable-stair gate.
         //

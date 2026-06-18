@@ -77,6 +77,8 @@ namespace SkyHarvest.Player
         // -----------------------------------------------------------------------
         private void HandleMovement()
         {
+            if (StairCutoutEditor.BlocksGameplayInput) return;
+
             float h = Input.GetAxisRaw("Horizontal");
             float v = Input.GetAxisRaw("Vertical");
 
@@ -115,6 +117,7 @@ namespace SkyHarvest.Player
             }
 
             transform.position = new Vector3(candidate.x, candidate.y, 0f);
+            SyncTierFromPosition();
 
             // Update facing and walk animation
             UpdateFacing(h, v);
@@ -137,17 +140,101 @@ namespace SkyHarvest.Player
             result = candidate;
             if (Island == null) return true;
 
+            if (Island.StairsCarved)
+            {
+                foreach (var (a, b) in Island.EachStairEdge())
+                {
+                    bool fromOn = StairWalkMath.InCorridor(from, a, b, Island);
+                    bool candOn = StairWalkMath.InCorridor(candidate, a, b, Island);
+                    if (!fromOn && !candOn) continue;
+
+                    StairWalkMath.ResolveEnds(a, b, Island,
+                        out var low, out int lowTier, out var high, out int highTier);
+
+                    if (fromOn && !candOn)
+                    {
+                        for (int tier = 1; tier >= 0; tier--)
+                        {
+                            var cell = Core.GridMath.WorldToGrid(candidate, tier);
+                            if (Island.Tier(cell) == tier &&
+                                Core.GridMath.ContainsDiamond(candidate, cell, tier))
+                            {
+                                CurrentTier = tier;
+                                break;
+                            }
+                        }
+
+                        if (Island.IsWalkableAt(candidate, CurrentTier) &&
+                            Core.GridMath.ContainsDiamond(candidate,
+                                Core.GridMath.WorldToGrid(candidate, CurrentTier), CurrentTier))
+                            break;
+
+                        if (!StairWalkMath.TryProjectOntoCorridor(candidate, low, lowTier, high, highTier,
+                                out var driftT, out _))
+                            return false;
+
+                        CurrentTier = StairWalkMath.TierForProgress(driftT, lowTier, highTier);
+                        result = StairWalkMath.ClampToCorridor(candidate, low, lowTier, high, highTier);
+                        return true;
+                    }
+
+                    if (!StairWalkMath.TryProjectOntoCorridor(candidate, low, lowTier, high, highTier,
+                            out var t, out var lateral))
+                        return false;
+
+                    Vector2 resolved = lateral <= StairWalkMath.HalfWidth
+                        ? candidate
+                        : StairWalkMath.ClampToCorridor(candidate, low, lowTier, high, highTier);
+
+                    CurrentTier = StairWalkMath.TierForProgress(t, lowTier, highTier);
+                    result = resolved;
+                    return true;
+                }
+            }
+
             Vector2Int toCell = Core.GridMath.WorldToGrid(candidate, CurrentTier);
-            if (toCell == fromCell) return true;                 // sub-cell move, same tile
+            if (toCell == fromCell)
+                return Island.IsWalkableAt(candidate, CurrentTier);
+
             if (!Island.CanTraverse(fromCell, toCell)) return false;
 
             int toTier = Island.Tier(toCell);
-            if (toTier != CurrentTier)                            // climbed/descended the stairs
-            {
-                CurrentTier = toTier;
-                result = Core.GridMath.GridToWorld(toCell, toTier);
-            }
+
+            if (!Core.GridMath.ContainsDiamond(candidate, toCell, toTier))
+                return false;
             return true;
+        }
+
+        /// <summary>Keep CurrentTier aligned with world position (stairs + tier diamonds).</summary>
+        private void SyncTierFromPosition()
+        {
+            if (Island == null) return;
+            Vector2 pos = transform.position;
+
+            if (Island.StairsCarved)
+            {
+                foreach (var (a, b) in Island.EachStairEdge())
+                {
+                    if (!StairWalkMath.InCorridor(pos, a, b, Island)) continue;
+                    StairWalkMath.ResolveEnds(a, b, Island,
+                        out var low, out int lowTier, out var high, out int highTier);
+                    if (!StairWalkMath.TryProjectOntoCorridor(pos, low, lowTier, high, highTier,
+                            out var t, out _))
+                        continue;
+                    CurrentTier = StairWalkMath.TierForProgress(t, lowTier, highTier);
+                    return;
+                }
+            }
+
+            for (int tier = 1; tier >= 0; tier--)
+            {
+                var cell = Core.GridMath.WorldToGrid(pos, tier);
+                if (Island.Tier(cell) == tier && Core.GridMath.ContainsDiamond(pos, cell, tier))
+                {
+                    CurrentTier = tier;
+                    return;
+                }
+            }
         }
 
         // -----------------------------------------------------------------------

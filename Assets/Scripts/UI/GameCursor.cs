@@ -83,7 +83,9 @@ namespace SkyHarvest.UI
 
             _cursorRT = go.GetComponent<RectTransform>();
             _cursorRT.sizeDelta = new Vector2(24f, 24f);
-            _cursorRT.pivot     = new Vector2(0f, 1f);  // top-left = cursor tip
+            // Keep the drawn cursor centered on the same point used for tile picking.
+            // This avoids "highlight one tile above/aside" feeling caused by a mismatched hotspot.
+            _cursorRT.pivot     = new Vector2(0.5f, 0.5f);
 
             var img = go.GetComponent<Image>();
             img.sprite        = ProcGfx.CursorPointer(new Color(0.45f, 0.88f, 1f), 24);
@@ -118,13 +120,7 @@ namespace SkyHarvest.UI
             if (_highlightSR == null || _cam == null || _island == null || _player == null
                 || _tools == null || _hotbar == null) return;
 
-            // Screen → world → grid at the player's current elevation tier.
-            var screenPos = Input.mousePosition;
-            screenPos.z   = Mathf.Abs(_cam.transform.position.z);
-            Vector3 world3 = _cam.ScreenToWorldPoint(screenPos);
-            Vector2 world2 = new(world3.x, world3.y);
-
-            var gridPos = GridMath.WorldToGrid(world2, _player.CurrentTier);
+            var gridPos = GridMath.ScreenToGrid(_cam, Input.mousePosition, _player.CurrentTier);
 
             bool canInteract = TileInteractability.CanInteractAt(
                 gridPos, _island, _player, _tools, _hotbar,
@@ -139,7 +135,8 @@ namespace SkyHarvest.UI
             if (gridPos != _lastCell || !_hlVisible)
             {
                 _lastCell = gridPos;
-                Vector2 centre = GridMath.GridToWorld(gridPos, _player.CurrentTier);
+                float elev = _island.GetCell(gridPos)?.Elevation ?? _player.CurrentTier;
+                Vector2 centre = GridMath.GridToWorld(gridPos, elev);
                 _highlightSR.transform.position = new Vector3(centre.x, centre.y, -0.1f);
             }
 

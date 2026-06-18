@@ -197,7 +197,9 @@ namespace SkyHarvest.Core
             for (int x = 0; x < halfW; x++)
             {
                 float frac = (float)x / (halfW - 1);
-                float dTop = (rightSide ? (1f - frac) : frac) * half;
+                // Jagged cliff lip — irregular top edge instead of a ruler-straight seam.
+                float jag = RockNoise(x, 0, seed: 3) * 2.5f;
+                float dTop = (rightSide ? (1f - frac) : frac) * half + jag;
                 for (int b = 0; b < faceHeightPx; b++)
                 {
                     int yTex = (H - 1) - Mathf.RoundToInt(dTop + b);
@@ -207,35 +209,44 @@ namespace SkyHarvest.Core
 
                     if (stair)
                     {
-                        int stepH = Mathf.Max(5, faceHeightPx / 4);
-                        int within = b % stepH;
-                        if (within == 0)              c = Color.Lerp(c, new Color(0.72f, 0.62f, 0.48f), 0.55f);
-                        else if (within == stepH - 1) c = Color.Lerp(c, new Color(0.12f, 0.10f, 0.08f), 0.45f);
-                        // Vertical timber plank seams on the tread face
-                        if (x % 6 == 0) c = Color.Lerp(c, Color.black, 0.12f);
-                    }
-                    else
-                    {
-                        // Rock texture: value noise + strata lines + edge shadow
-                        float n = RockNoise(x, b, seed: 7);               // –1..1 cell-level noise
-                        float fine = RockNoise(x * 3, b * 3, seed: 13);   // finer grain
-                        float noise = n * 0.10f + fine * 0.05f;
+                        // Carved rock steps (concept: hewn into cliff, not timber planks).
+                        int numSteps = 4;
+                        int stepH    = Mathf.Max(4, faceHeightPx / numSteps);
+                        int within   = b % stepH;
+                        int stepIdx  = b / stepH;
+
+                        float n    = RockNoise(x, b, seed: 31);
+                        float fine = RockNoise(x * 3, b * 3, seed: 17);
+                        float noise = n * 0.09f + fine * 0.05f;
                         c = new Color(
                             Mathf.Clamp01(c.r + noise),
                             Mathf.Clamp01(c.g + noise),
                             Mathf.Clamp01(c.b + noise), 1f);
 
-                        // Horizontal rock strata — subtle dark lines every ~8px
-                        if (b % 8 == 0)
-                            c = Color.Lerp(c, Color.black, 0.18f);
+                        // Tread lip — lighter flat stone at each step top.
+                        if (within == 0)
+                        {
+                            var tread = new Color(0.50f, 0.47f, 0.42f);
+                            c = Color.Lerp(c, tread, 0.60f);
+                            // Sparse moss on weathered tread edges.
+                            if (stepIdx > 0 && (x + stepIdx) % 9 == 2)
+                                c = Color.Lerp(c, new Color(0.36f, 0.44f, 0.30f), 0.30f);
+                        }
+                        // Riser recess — dark shadow under the tread above.
+                        else if (within >= stepH - 2)
+                            c = Color.Lerp(c, new Color(0.13f, 0.11f, 0.09f), 0.50f);
 
-                        // Occasional lighter surface crack highlight
-                        if (b % 13 == 0 && x % 5 == 2)
-                            c = Color.Lerp(c, Color.white, 0.12f);
+                        // Subtle vertical chisel striations (not plank seams).
+                        if (x % 8 == 0)
+                            c = Color.Lerp(c, Color.black, 0.07f);
 
-                        // Left/right edge receive a directional shadow so face reads as 3D
-                        float edgeShadow = 1f - Mathf.Pow(Mathf.Abs(frac - 0.5f) * 2f, 3f) * 0.3f;
-                        c = new Color(c.r * edgeShadow, c.g * edgeShadow, c.b * edgeShadow, 1f);
+                        // Rock strata between treads.
+                        if (within > 1 && within < stepH - 2 && b % 10 == 0)
+                            c = Color.Lerp(c, Color.black, 0.14f);
+                    }
+                    else
+                    {
+                        c = RockyCliffColor(c, x, b, frac, faceHeightPx, mossLip: b < 5);
                     }
 
                     px[yTex * halfW + x] = c;
@@ -245,6 +256,176 @@ namespace SkyHarvest.Core
             tex.Apply();
             var pivot = rightSide ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
             return Sprite.Create(tex, new Rect(0, 0, halfW, H), pivot, Constants.PixelsPerUnit);
+        }
+
+        /// <summary>
+        /// Carved stairs on the tier-boundary cliff face (SW or SE parallelogram — same
+        /// footprint as <see cref="IsoTierFace"/>). The diagonal channel runs down the
+        /// face toward the lower neighbour, with a short notch into the tile lip above.
+        /// </summary>
+        public static Sprite IsoCarvedStairFace(
+            Color rockTop, Color rockBottom, Color treadColor,
+            int faceHeightPx, bool rightSide)
+        {
+            const int half = 16;
+            const int halfW = 32;
+            const int notchPx = 10;
+            int H = half + faceHeightPx + notchPx;
+            var tex = new Texture2D(halfW, H, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point
+            };
+            var px = new Color[halfW * H];
+            for (int i = 0; i < px.Length; i++) px[i] = Color.clear;
+
+            const int numSteps = 3;
+
+            for (int x = 0; x < halfW; x++)
+            {
+                float frac = (float)x / (halfW - 1);
+                float jag = RockNoise(x, 0, seed: 3) * 2f;
+                float dTop = (rightSide ? (1f - frac) : frac) * half + jag;
+
+                for (int b = -notchPx; b < faceHeightPx; b++)
+                {
+                    int yTex = (H - 1) - Mathf.RoundToInt(dTop + b);
+                    if (yTex < 0 || yTex >= H) continue;
+
+                    float depthT = Mathf.Clamp01((b + notchPx) / (float)(faceHeightPx + notchPx - 1));
+                    Color baseC = Color.Lerp(rockTop, rockBottom, depthT);
+                    baseC = RockyCliffColor(baseC, x, b + 100, frac, faceHeightPx, mossLip: b < 2);
+
+                    // Diagonal channel down the cliff face (toward the lower-tier neighbour).
+                    float t = (b + notchPx) / (float)(faceHeightPx + notchPx);
+                    float channelCx = rightSide
+                        ? (7f + t * 17f)
+                        : (25f - t * 18f);
+                    float dist = Mathf.Abs(x - channelCx);
+
+                    if (dist > 8.5f)
+                    {
+                        px[yTex * halfW + x] = baseC;
+                        continue;
+                    }
+
+                    if (dist > 6.5f)
+                    {
+                        baseC = Color.Lerp(baseC, new Color(0.09f, 0.08f, 0.07f), 0.62f);
+                        px[yTex * halfW + x] = baseC;
+                        continue;
+                    }
+
+                    bool onTread = false;
+                    for (int s = 0; s < numSteps; s++)
+                    {
+                        float stepY = (s + 0.55f) / numSteps * faceHeightPx;
+                        if (Mathf.Abs(b - stepY) <= 3.2f && dist <= 6f)
+                        {
+                            Color tread = treadColor;
+                            if ((x + s) % 6 == 1)
+                                tread = Color.Lerp(tread, new Color(0.34f, 0.42f, 0.28f), 0.28f);
+                            float lip = (b - (stepY - 3.2f)) / 6.4f;
+                            if (lip < 0.25f)
+                                tread = Color.Lerp(tread, Color.white, 0.12f);
+                            else if (lip > 0.65f)
+                                tread = Color.Lerp(tread, new Color(0.10f, 0.08f, 0.07f), 0.45f);
+                            baseC = Color.Lerp(baseC, tread, 0.85f);
+                            onTread = true;
+                            break;
+                        }
+                    }
+
+                    if (!onTread)
+                        baseC = Color.Lerp(baseC, new Color(0.11f, 0.09f, 0.08f), 0.40f);
+
+                    px[yTex * halfW + x] = baseC;
+                }
+            }
+
+            tex.SetPixels(px);
+            tex.Apply();
+            var pivot = rightSide ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
+            return Sprite.Create(tex, new Rect(0, 0, halfW, H), pivot, Constants.PixelsPerUnit);
+        }
+
+        /// <summary>
+        /// Trims the tile-surface wedge above a carved stair cliff (where the SW/SE
+        /// lip meets the upper plateau). Pivot matches the terrain diamond (0.5, 0).
+        /// </summary>
+        public static Sprite IsoStairTileTrim(Color rockTop, bool towardPlusY)
+        {
+            const int w = 64;
+            const int h = 32;
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point
+            };
+            var px = new Color[w * h];
+            float cx = w * 0.5f;
+            float cy = h * 0.5f;
+
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                float u = (x + 0.5f - cx) / (w * 0.5f);
+                float v = (y + 0.5f - cy) / (h * 0.5f);
+                if (Mathf.Abs(u) + Mathf.Abs(v) > 1.0f)
+                {
+                    px[y * w + x] = Color.clear;
+                    continue;
+                }
+
+                // Only the lip above the SW (+y) or SE (+x) cliff edge.
+                float trim = towardPlusY
+                    ? Mathf.Clamp01((-u * 0.75f + v * 0.55f - 0.05f) * 2.2f)
+                    : Mathf.Clamp01((u * 0.75f + v * 0.55f - 0.05f) * 2.2f);
+                if (trim < 0.35f)
+                {
+                    px[y * w + x] = Color.clear;
+                    continue;
+                }
+
+                float n = RockNoise(x, y, seed: 71);
+                Color c = Color.Lerp(rockTop, new Color(0.34f, 0.42f, 0.28f), trim * 0.35f);
+                c = new Color(
+                    Mathf.Clamp01(c.r + n * 0.05f),
+                    Mathf.Clamp01(c.g + n * 0.05f),
+                    Mathf.Clamp01(c.b + n * 0.05f), 1f);
+                px[y * w + x] = c;
+            }
+
+            tex.SetPixels(px);
+            tex.Apply();
+            return Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0f), Constants.PixelsPerUnit);
+        }
+
+        private static Color RockyCliffColor(Color baseC, int x, int y, float frac, int faceH, bool mossLip)
+        {
+            float n = RockNoise(x, y, seed: 7);
+            float fine = RockNoise(x * 3, y * 3, seed: 13);
+            float noise = n * 0.11f + fine * 0.06f;
+            baseC = new Color(
+                Mathf.Clamp01(baseC.r + noise),
+                Mathf.Clamp01(baseC.g + noise),
+                Mathf.Clamp01(baseC.b + noise), 1f);
+
+            if (y % 9 == 0)
+                baseC = Color.Lerp(baseC, Color.black, 0.16f);
+            if (x % 11 == 3 && y % 13 == 5)
+                baseC = Color.Lerp(baseC, Color.black, 0.28f);
+            if (y % 14 == 2 && x % 6 == 1)
+                baseC = Color.Lerp(baseC, Color.white, 0.10f);
+
+            if (mossLip)
+            {
+                var moss = new Color(0.32f, 0.44f, 0.26f);
+                baseC = Color.Lerp(baseC, moss, 0.42f);
+            }
+
+            float edgeShadow = 1f - Mathf.Pow(Mathf.Abs(frac - 0.5f) * 2f, 3f) * 0.28f;
+            return new Color(baseC.r * edgeShadow, baseC.g * edgeShadow, baseC.b * edgeShadow, 1f);
         }
 
         // Cheap deterministic value noise in [–1, 1] for rock texture detail.
