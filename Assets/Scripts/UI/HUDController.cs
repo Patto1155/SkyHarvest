@@ -39,7 +39,6 @@ namespace SkyHarvest.UI
             EventBus.Subscribe<HourChangedEvent>(OnHourChanged);
             EventBus.Subscribe<WeatherChangedEvent>(OnWeatherChanged);
             EventBus.Subscribe<InventoryChangedEvent>(_ => RefreshHotbar());
-            EventBus.Subscribe<HotbarChangedEvent>(_ => RefreshHotbar());
             EventBus.Subscribe<ToolEquippedEvent>(_ => RefreshHotbar());
             EventBus.Subscribe<HotbarSelectionChangedEvent>(OnHotbarSelectionChanged);
             RefreshHotbar();

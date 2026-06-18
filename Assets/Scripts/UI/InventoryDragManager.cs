@@ -64,6 +64,35 @@ namespace SkyHarvest.UI
             RefreshDisplays();
         }
 
+        public void OnSlotShiftClick(int inventoryIndex)
+        {
+            if (!IsInventoryOpen || IsHolding) return;
+
+            var inv = _playerInv?.Inventory;
+            if (inv == null || inventoryIndex < 0 || inventoryIndex >= inv.Slots.Length) return;
+
+            bool moved;
+            if (PlayerInventoryComponent.IsHotbarIndex(inventoryIndex))
+            {
+                moved = inv.TryQuickMove(
+                    inventoryIndex,
+                    PlayerInventoryComponent.HotbarSlots,
+                    PlayerInventoryComponent.TotalSlots);
+            }
+            else if (PlayerInventoryComponent.IsBackpackIndex(inventoryIndex))
+            {
+                moved = inv.TryQuickMove(
+                    inventoryIndex,
+                    0,
+                    PlayerInventoryComponent.HotbarSlots);
+            }
+            else
+                return;
+
+            if (moved)
+                RefreshDisplays();
+        }
+
         public void OnInventoryClosed() => ReturnCursor();
 
         public void CancelHold() => ReturnCursor();
