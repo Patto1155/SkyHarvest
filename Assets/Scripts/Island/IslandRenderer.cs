@@ -193,7 +193,7 @@ namespace SkyHarvest.Island
             {
                 var vis = kvp.Value;
                 vis.Tile.enabled = true;
-                vis.BlendRoot.gameObject.SetActive(true);
+                vis.BlendRoot.SetActive(true);
                 var underlay = vis.Root.transform.Find("Underlay")?.GetComponent<SpriteRenderer>();
                 if (underlay != null) underlay.enabled = true;
                 var cell = _island.GetCell(kvp.Key);
@@ -206,7 +206,7 @@ namespace SkyHarvest.Island
             if (!_visuals.TryGetValue(pos, out var vis)) return;
             vis.Tile.enabled = false;
             vis.Overlay.enabled = false;
-            vis.BlendRoot.gameObject.SetActive(false);
+            vis.BlendRoot.SetActive(false);
             var underlay = vis.Root.transform.Find("Underlay")?.GetComponent<SpriteRenderer>();
             if (underlay != null) underlay.enabled = false;
         }

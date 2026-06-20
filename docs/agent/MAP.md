@@ -104,11 +104,20 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
   `Bootstrap.StartFromSave` rebuild via `StarterIsland.Build` instead of `IslandGenerator`
   when that's what was actually played, and restore which elevation tier the player was on.
 
-## Editor harnesses (`Assets/Editor/`)
-- `BuildScript.cs` — `BuildWindows` batchmode build → `Builds/Windows/SkyHarvest.exe`.
-- `PlayModeScreenshots.cs` — unattended Play-mode screenshots (see WORKFLOW.md).
-- `PlayModeVerify.cs` — drives every feature loop live, writes `artifacts/verify/verify_report.md`.
+## Editor harnesses + agent testing (`Assets/Editor/`, `tools/*.sh`)
+- **`docs/agent/TESTING.md`** — which loop to use (check / validate / verify / shot / dev mode).
+- `BuildScript.cs` — `BuildWindows` → `tools/build.sh` → `Builds/Windows/SkyHarvest.exe`.
+- `PlayModeVerify.cs` — live feature matrix → `tools/verify.sh` → `artifacts/verify/verify_report.md`.
+- `PlayModeContactSheet.cs` — cozy contact sheet → `tools/shot.sh`.
+- `PlayModeStairShot.cs` — stair boundary png → `tools/stair-shot.sh`.
+- `PlayModeScreenshots.cs` — timed frames (see WORKFLOW.md).
+- `tools/run.sh` / `tools/dev-watch.sh` — play standalone; pass `--dev` for debug session.
+
+## Dev-only runtime (`Assets/Scripts/Dev/`, `--dev` flag)
+- `DevDebugPanel` (F3) + `DevDebugOverlay` — walk diamonds, terrain categories, stair corridor GL.
+- `StairCutoutEditor` (F8) + `StairCutoutLayout` — in-game cutout stretch/save (StreamingAssets JSON).
+- Excluded from CLR harness; stubs in `tools/clr-harness/GameCode/HarnessShims.cs`.
 
 ## Tests
-- `Assets/Tests/EditMode/*` — run BOTH via `tools/check.sh` (fast, .NET against stubs) and Unity EditMode.
-- `tools/validate.sh` — check.sh + Unity batch compile + EditMode tests. Always run before handoff.
+- `Assets/Tests/EditMode/*` — run via `tools/check.sh` (fast, stubs) and Unity EditMode.
+- `tools/validate.sh` — check.sh + Unity batch compile + EditMode tests. Pre-handoff.

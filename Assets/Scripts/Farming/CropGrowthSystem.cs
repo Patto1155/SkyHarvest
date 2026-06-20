@@ -60,6 +60,9 @@ namespace SkyHarvest.Farming
                 if (rainWater > 0f)
                     plot.Soil.AddWater(rainWater);
 
+                SpringIrrigation.WaterAdjacentPlots(
+                    GameManager.Instance?.CurrentIsland, e.DeltaMinutes);
+
                 float windDamage = GetWindDamage(weather);
                 plot.Crop.Tick(e.DeltaMinutes, plot.Soil, sunExposure, windDamage);
 

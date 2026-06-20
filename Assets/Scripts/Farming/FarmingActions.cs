@@ -103,11 +103,16 @@ namespace SkyHarvest.Farming
         // -----------------------------------------------------------------------
         // Water — add 25 units to soil moisture
         // -----------------------------------------------------------------------
-        public static void Water(CropPlot plot)
+        public static void Water(CropPlot plot, IslandData? island = null)
         {
             plot.Soil.AddWater(25f);
+            if (island != null && IsAdjacentToSpring(island, plot.GridPos))
+                plot.Soil.AddWater(15f);
             plot.RefreshVisuals();
         }
+
+        private static bool IsAdjacentToSpring(IslandData island, Vector2Int plotPos) =>
+            SpringIrrigation.IsAdjacentToSpring(island, plotPos);
 
         // -----------------------------------------------------------------------
         // Harvest — collect crop yield into player inventory

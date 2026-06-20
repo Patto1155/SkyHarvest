@@ -17,8 +17,10 @@ This machine's only account is `Administrator`, so **every GUI Unity launch show
 ## Fast logic loop (no Unity, ~10s)
 
 ```bash
-bash tools/check.sh          # NUnit tests against Unity stubs (123 currently)
+bash tools/check.sh          # NUnit tests against Unity stubs (134+ currently)
 ```
+
+Full testing tiers (verify, shot, dev mode, when to add EditMode tests): **`docs/agent/TESTING.md`**.
 
 `check.sh` self-locates the .NET 8 SDK — no `export PATH` needed. If it reports
 `error CS...` for a NEW UI script, the stub may be missing a Unity member: add it to
@@ -54,13 +56,11 @@ After a successful build:
 
 ```bash
 bash tools/run.sh
-# or manually (from repo root):
-./Builds/Windows/SkyHarvest.exe
+bash tools/run.sh -- --dev       # skip menu, carved stairs, F3 debug + F8 stair editor
+bash tools/dev-watch.sh          # auto-rebuild + relaunch on script/sprite save
 ```
 
-`run.sh` rebuilds first if `SkyHarvest.dll` is older than any `Assets/Scripts/**/*.cs`
-file (use `bash tools/run.sh --no-build` to skip). The game opens **windowed 1280×720**.
-Click **New Game** on the main menu to start.
+See **`docs/agent/TESTING.md`** for dev-mode keys, verify/shot harnesses, and which loop to pick.
 
 **Controls (quick ref):** WASD move · E interact · Tab inventory · B build menu ·
 1–9/0 hotbar · mouse drag items between hotbar and inventory when Tab is open ·

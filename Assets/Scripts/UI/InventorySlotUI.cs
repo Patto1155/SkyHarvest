@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 
 namespace SkyHarvest.UI
 {
-    public class InventorySlotUI : MonoBehaviour, IPointerClickHandler
+    public class InventorySlotUI : MonoBehaviour, IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
     {
         private InventoryDragManager? _manager;
         private int _inventoryIndex;
@@ -13,6 +13,12 @@ namespace SkyHarvest.UI
             _manager        = manager;
             _inventoryIndex = inventoryIndex;
         }
+
+        public void OnPointerEnter(PointerEventData eventData) =>
+            _manager?.OnSlotHoverEnter(_inventoryIndex);
+
+        public void OnPointerExit(PointerEventData eventData) =>
+            _manager?.OnSlotHoverExit(_inventoryIndex);
 
         public void OnPointerClick(PointerEventData eventData)
         {

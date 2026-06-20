@@ -24,6 +24,11 @@ namespace SkyHarvest.UI
         private CursorStack _cursor;
         private int _pickupIndex = -1;
 
+        private int _hoverIndex = -1;
+        private float _hoverTimer;
+        private bool _hoverNameShown;
+        private const float HoverNameDelay = 1f;
+
         public bool IsHolding => !_cursor.IsEmpty;
         public bool IsInventoryOpen => _inventoryUI != null && _inventoryUI.IsOpen;
 
@@ -93,7 +98,25 @@ namespace SkyHarvest.UI
                 RefreshDisplays();
         }
 
-        public void OnInventoryClosed() => ReturnCursor();
+        public void OnSlotHoverEnter(int inventoryIndex)
+        {
+            if (!IsInventoryOpen) return;
+            _hoverIndex      = inventoryIndex;
+            _hoverTimer      = 0f;
+            _hoverNameShown  = false;
+        }
+
+        public void OnSlotHoverExit(int inventoryIndex)
+        {
+            if (_hoverIndex != inventoryIndex) return;
+            ClearHover();
+        }
+
+        public void OnInventoryClosed()
+        {
+            ClearHover();
+            ReturnCursor();
+        }
 
         public void CancelHold() => ReturnCursor();
 
@@ -218,6 +241,8 @@ namespace SkyHarvest.UI
                 return;
             }
 
+            UpdateHoverName();
+
             if (!_cursor.IsEmpty)
             {
                 if (Input.GetMouseButtonDown(1))
@@ -231,6 +256,41 @@ namespace SkyHarvest.UI
         {
             _inventoryUI?.RefreshIfOpen();
             _hud?.RefreshHotbarPublic();
+        }
+
+        private void UpdateHoverName()
+        {
+            if (_hoverIndex < 0) return;
+
+            var inv = _playerInv?.Inventory;
+            if (inv == null || _hoverIndex >= inv.Slots.Length)
+            {
+                ClearHover();
+                return;
+            }
+
+            var slot = inv.Slots[_hoverIndex];
+            if (slot.IsEmpty)
+            {
+                ClearHover();
+                return;
+            }
+
+            _hoverTimer += Time.deltaTime;
+            if (_hoverTimer >= HoverNameDelay && !_hoverNameShown)
+            {
+                _hoverNameShown = true;
+                _hud?.BeginInventoryHoverName(slot.ItemId);
+            }
+        }
+
+        private void ClearHover()
+        {
+            if (_hoverNameShown)
+                _hud?.EndInventoryHoverName();
+            _hoverIndex     = -1;
+            _hoverTimer     = 0f;
+            _hoverNameShown = false;
         }
     }
 }

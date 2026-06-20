@@ -1,25 +1,23 @@
 # Scope-gap ledger — design spec + MVP plan vs. code (2026-06-14)
 
-> **Session 7 (2026-06-16, `feat/bugfixes-and-session-prs`, commit `6c98a7e`) — playtest
-> bugfixes + PR1/2/4/6/7/9/10.** Full writeup in START_HERE.md. Relevant to this ledger:
-> - **G8 (minimap stub) CLOSED** — `UI/MinimapController.cs` renders a real top-down dot map
->   + live player marker. Keybind table below updated (M now toggles it).
-> - **New known test-harness gaps** (not gameplay bugs — `PlayModeVerify.cs` itself needs
->   updating for the session-6 starter island, nobody has done this yet):
->   - `StepSkynet` (`PlayModeVerify.cs`) filters for `c.Terrain == TerrainType.CliffEdge`, but
->     `StarterIsland` only ever produces `FertileValley`/`RockyPlateau` cells — that terrain
->     type structurally doesn't exist on the starter island, so the Skynet verify step always
->     fails with "no free cliff-edge cell on this island". Fix: either give `StarterIsland` an
->     edge cell with `CliffEdge` terrain, or relax the test predicate to any valid edge cell.
->   - `StepTillSow` calls `FarmingActions.TrySow(plot, player)` (no seed arg), which requires
->     the seed to already be the **currently-selected hotbar slot** — but the preceding
->     `StepTools` step leaves slot 0 (Hoe) selected and never selects the wheat-seed slot.
->     Fix: in `StepTillSow`, call `hotbar.SelectSlot(<wheat_seed slot index>)` before sowing,
->     or use the explicit `TrySow(plot, player, "wheat_seed")` overload instead.
->   - These two cascade: Grow/Harvest also report FAIL because they depend on Till+Sow's crop.
->   - Confirmed via `tools/verify.sh`: **zero runtime exceptions**, 19/19 of the *other* checks
->     PASS — these 3 are isolated to the predicates above, not a regression from session 7's
->     PRs (none of which touch Hotbar/FarmingActions/terrain).
+> **Session 8 (2026-06-18, `main`, commit `11e9e51`) — carved stair cutout + tier corridor
+> climbing + F3 dev debug panel.** Not in ledger before this pass:
+> - Custom stair PNG (`stair_cutoutv2.png`) with `StairCutoutLayout` JSON + F8 in-game editor (`--dev`).
+> - `StairWalkMath` diagonal walk corridor; `PlayerController.TryStep` clamp/exit logic; `GridMath.DiamondCentre`.
+> - `Dev/DevDebugPanel` (F3), `DevDebugOverlay` (GL hitboxes), `DevDebugSettings`.
+>
+> **Session 8b (2026-06-18, same branch, uncommitted)** — automation pass without human playtest:
+> - `PlayModeVerify.StepSkynet` falls back to any free edge cell (not only `CliffEdge`).
+> - `tools/check.sh` works again: exclude `Dev/**` + editor-only scripts from CLR harness;
+>   `SKYHARVEST_HEADLESS` shims for `StairCutoutEditor` / `DevDebugPanel`; `Texture2D.LoadImage` stub;
+>   `IslandRenderer.BlendRoot.SetActive` fix (was invalid `.gameObject` on `GameObject`).
+> - **G9 partial CLOSED** — `SpringIrrigation` passive drip from `NaturalSpring` neighbours +
+>   manual water bonus; `SpringIrrigationTests` (3).
+> - `StairWalkTests` end-to-end corridor walkability sample; `visual.json` cozy nudge; softer ambient gain.
+> - Known test-harness gaps in `PlayModeVerify` **Till+Sow path already fixed** in source (seed hotbar
+>   selection) — re-run `tools/verify.sh` to confirm 20/20.
+
+> **Session 7 (2026-06-16, commit `6c98a7e`) — playtest bugfixes + PR1/2/4/6/7/9/10.** Full writeup in START_HERE.md.
 
 > **Session 5 (2026-06-14, `feat/debris-loop`) — debris → skynet → expansion loop audited + closed.**
 > The whole chain was already wired and is now **live-verified in Play mode** (PlayModeVerify,
@@ -70,7 +68,7 @@ Sources: `docs/superpowers/specs/2026-03-17-sky-harvest-design.md` (§12 MVP sco
 | G12 | ✅ FIXED 2026-06-13 — **bare-ground tilling was unwired** (discovered via G6): `FarmingActions.TryTill` had NO runtime caller — only the verify harness tilled, so the player could never create a plot in-game. Now `InteractionSystem` tills the faced cell when E is pressed with the Hoe selected and no other target. Also set `PlayerController.Island` at spawn (was never assigned). | spec §4 farming loop | `InteractionSystem.TryTillFacingCell`, `Bootstrap.SpawnPlayer`/start paths | done |
 | G7 | ✅ FIXED 2026-06-13 — all B/Tab/Esc hotkeys centralized in `Bootstrap.Update`; Esc closes topmost panel only, pauses when nothing open | spec: Esc = cancel/close | `Bootstrap.Update` | done |
 | G8 | ✅ FIXED 2026-06-16 (session 7) — real top-down dot map + live player marker, no longer a static placeholder | spec §9 HUD "Minimap / island overview toggle" | `UI/MinimapController.cs` | done — M key also toggles it now |
-| G9 | Manual watering exists; irrigation channels / springs-as-water-source not implemented | spec §4 crop needs | no irrigation code | Borderline — springs terrain exists? (not in `TerrainType` enum per ledger read) → backlog |
+| G9 | ~~Irrigation channels / springs-as-water-source not implemented~~ — **PARTIAL 2026-06-18**: `SpringIrrigation` waters tilled neighbours of `NaturalSpring` each tick; manual water bonus when adjacent. Carved channels still backlog. | spec §4 crop needs | `Farming/SpringIrrigation.cs`, `CropGrowthSystem` | partial — channels deferred |
 | G10 | ~~Soil improvement missing~~ — WRONG on first pass: composting, rotation depletion, terrain-based quality ARE implemented (`SoilPatch`, proven by `SoilTests`) | spec §4 soil system | `SoilTests.Composting_Restores_Nutrients` etc. | ✅ no gap — verify a composting interaction path exists in-game |
 | G11 | Sunlight/shade simulation absent | spec §4 | none | Deferred (not in §12 list) |
 

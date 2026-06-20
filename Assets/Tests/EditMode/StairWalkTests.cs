@@ -53,4 +53,27 @@ public class StairWalkTests
         Vector2 clamped = StairWalkMath.ClampToCorridor(off, low, lowTier, high, highTier);
         Assert.IsTrue(StairWalkMath.InCorridor(clamped, Front, Back, island));
     }
+
+    [Test]
+    public void Simulated_Climb_Path_Stays_Walkable_End_To_End()
+    {
+        var island = StarterIsland.Build();
+        island.CarveStairs(Front);
+
+        StairWalkMath.ResolveEnds(Front, Back, island,
+            out var low, out int lowTier, out var high, out int highTier);
+        StairWalkMath.CorridorSegment(low, lowTier, high, highTier, out var start, out var end);
+
+        for (int i = 0; i <= 10; i++)
+        {
+            float t = i / 10f;
+            Vector2 pos = Vector2.Lerp(start, end, t);
+            Assert.IsTrue(island.IsWalkableAt(pos, 0), $"t={t:F1} should be walkable on low tier");
+            Assert.IsTrue(island.IsWalkableAt(pos, 1), $"t={t:F1} should be walkable on high tier");
+        }
+
+        Vector2 top = GridMath.DiamondCentre(Back, 1);
+        Assert.IsTrue(island.IsWalkableAt(top, 1));
+        Assert.IsTrue(GridMath.ContainsDiamond(top, Back, 1));
+    }
 }
