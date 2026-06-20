@@ -57,6 +57,7 @@ namespace UnityEngine
         public void Compress(bool highQuality) { }
         public byte[] EncodeToPNG() => Array.Empty<byte>();
         public byte[] EncodeToJPG(int quality = 75) => Array.Empty<byte>();
+        public bool LoadImage(byte[] data) => data != null && data.Length > 0;
         public static Texture2D? whiteTexture { get; } = new Texture2D(4, 4);
         public static Texture2D? blackTexture { get; } = new Texture2D(4, 4);
     }

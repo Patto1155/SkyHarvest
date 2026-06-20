@@ -77,4 +77,49 @@ public class GridMathTests
         int biased  = GridMath.SortingOrder(0f, -10000);
         Assert.AreEqual(base_ - 10000, biased);
     }
+
+    [Test]
+    public void ContainsDiamond_Centre_Is_Inside()
+    {
+        var cell = new Vector2Int(3, 4);
+        Vector2 centre = GridMath.DiamondCentre(cell);
+        Assert.IsTrue(GridMath.ContainsDiamond(centre, cell));
+    }
+
+    [Test]
+    public void ContainsDiamond_BottomTip_Is_Inside()
+    {
+        var cell = new Vector2Int(3, 4);
+        Vector2 tip = GridMath.GridToWorld(cell);
+        Assert.IsTrue(GridMath.ContainsDiamond(tip, cell));
+    }
+
+    [Test]
+    public void WorldToGrid_Picks_Correct_Cell_On_Diamond_Edges()
+    {
+        var cell = new Vector2Int(2, 3);
+        Vector2 centre = GridMath.DiamondCentre(cell);
+        // Points just inside each rim of the 1×0.5 diamond should still resolve to this cell.
+        Vector2[] inside =
+        {
+            centre + new Vector2( 0.49f,  0.00f),
+            centre + new Vector2(-0.49f,  0.00f),
+            centre + new Vector2( 0.00f,  0.24f),
+            centre + new Vector2( 0.00f, -0.24f),
+            centre + new Vector2( 0.30f,  0.10f),
+        };
+
+        foreach (var p in inside)
+            Assert.AreEqual(cell, GridMath.WorldToGrid(p), $"mis-picked near {p}");
+    }
+
+    [Test]
+    public void WorldToGrid_Adjacent_Cells_Do_Not_Bleed()
+    {
+        var east = new Vector2Int(1, 0);
+        Vector2 centre = GridMath.DiamondCentre(east);
+        // Just inside the west rim of the east cell.
+        Vector2 probe = centre + new Vector2(-0.49f, 0f);
+        Assert.AreEqual(east, GridMath.WorldToGrid(probe));
+    }
 }

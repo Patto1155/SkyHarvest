@@ -3,7 +3,7 @@
 // Uses a static InteractableRegistry instead of Physics2D.OverlapCircleAll to
 // avoid physics-layer setup dependencies.  E to interact with nearest target
 // within 1.2 world units.  When nothing is targeted, E with the Hoe selected
-// tills the bare cell the player is facing (the only way to create new plots).
+// tills the bare cell under the cursor (the only way to create new plots).
 using System.Collections.Generic;
 using UnityEngine;
 using SkyHarvest.Farming;
@@ -67,14 +67,14 @@ namespace SkyHarvest.Player
             // before the player mines their way up to the forge tier.
             if (TryCarveStairs()) return;
 
+            // Hoe on bare ground under the cursor wins over a nearby interactable so
+            // the highlighted tile is the one that gets tilled.
+            if (TryTillCursorCell()) return;
+
             if (CurrentTarget != null)
             {
                 _player?.PlayActionAnimation();
                 CurrentTarget.Interact(_player!);
-            }
-            else
-            {
-                TryTillFacingCell();
             }
         }
 
@@ -96,28 +96,37 @@ namespace SkyHarvest.Player
         }
 
         // -----------------------------------------------------------------------
-        // Ground action — till the bare cell the player faces (Hoe selected).
+        // Ground action — till the bare cell under the cursor (Hoe selected).
         // This is the only path that creates a new CropPlot; the plot then
         // handles sow/water/harvest via its own Interact.
         // -----------------------------------------------------------------------
-        private void TryTillFacingCell()
+        private bool TryTillCursorCell()
         {
-            if (_player?.Island == null) return;
-            if (!_player.TryGetComponent<ToolSystem>(out var tools)) return;
-            if (tools.EquippedTool != ToolType.Hoe) return;
+            if (_player?.Island == null) return false;
+            if (!_player.TryGetComponent<ToolSystem>(out var tools)) return false;
+            if (tools.EquippedTool != ToolType.Hoe) return false;
 
-            var facingCell = _player.CurrentFacingCell;
+            var cam = Camera.main;
+            if (cam == null) return false;
+
+            var targetCell = SkyHarvest.Core.GridMath.ScreenToGrid(
+                cam, Input.mousePosition, _player.CurrentTier);
 
             // Block cross-tier tilling: the player must be on the same tier as the target cell.
-            if (_player.Island.Tier(facingCell) != _player.CurrentTier) return;
+            if (_player.Island.Tier(targetCell) != _player.CurrentTier) return false;
 
-            var cell = _player.Island.GetCell(facingCell);
-            if (cell == null || cell.IsTilled) return;
-            if (!TerrainProperties.CanPlaceCrops(cell.Terrain)) return;
+            Vector2 cellWorld = SkyHarvest.Core.GridMath.GridToWorld(targetCell, _player.CurrentTier);
+            if (Vector2.Distance(_player.transform.position, cellWorld) > InteractRadius) return false;
+
+            var cell = _player.Island.GetCell(targetCell);
+            if (cell == null || cell.IsTilled) return false;
+            if (!TerrainProperties.CanPlaceCrops(cell.Terrain)) return false;
 
             if (_renderer == null) _renderer = Object.FindObjectOfType<IslandRenderer>();
-            if (FarmingActions.TryTill(cell, _player.Island, _renderer) != null)
-                _player.PlayActionAnimation();
+            if (FarmingActions.TryTill(cell, _player.Island, _renderer) == null) return false;
+
+            _player.PlayActionAnimation();
+            return true;
         }
 
         // -----------------------------------------------------------------------

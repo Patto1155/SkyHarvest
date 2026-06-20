@@ -109,7 +109,7 @@ namespace SkyHarvest.Farming
                     break;
 
                 case ToolType.WateringCan:
-                    FarmingActions.Water(this);
+                    FarmingActions.Water(this, player.Island);
                     break;
 
                 case ToolType.Sickle:

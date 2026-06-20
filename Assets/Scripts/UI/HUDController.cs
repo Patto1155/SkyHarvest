@@ -16,6 +16,11 @@ namespace SkyHarvest.UI
         private Text? _hotbarNameText;
         private float _hotbarNameTimer;
         private const float HotbarNameDuration = 1.0f;
+        private const float NameFadeDuration   = 0.3f;
+
+        private enum ItemNameDisplayMode { None, HotbarPulse, InventoryHover }
+        private ItemNameDisplayMode _nameMode = ItemNameDisplayMode.None;
+        private float _nameAlpha;
 
         // Unified hotbar (tools + items share one bar; see Hotbar.cs).
         private GameObject[]? _hotbarSlots;
@@ -96,8 +101,31 @@ namespace SkyHarvest.UI
             string name = ItemDisplayName(model.ItemIdAt(e.SlotIndex));
             if (string.IsNullOrEmpty(name)) return;
             _hotbarNameText.text  = name;
-            _hotbarNameText.color = Color.white;
+            _nameMode             = ItemNameDisplayMode.HotbarPulse;
+            _nameAlpha            = 1f;
             _hotbarNameTimer      = HotbarNameDuration;
+        }
+
+        public void BeginInventoryHoverName(string? itemId)
+        {
+            if (_hotbarNameText == null) return;
+            string name = ItemDisplayName(itemId);
+            if (string.IsNullOrEmpty(name)) return;
+            _hotbarNameText.text = name;
+            _nameMode  = ItemNameDisplayMode.InventoryHover;
+            _nameAlpha = 0f;
+        }
+
+        public void EndInventoryHoverName()
+        {
+            if (_nameMode != ItemNameDisplayMode.InventoryHover) return;
+            _nameMode  = ItemNameDisplayMode.None;
+            _nameAlpha = 0f;
+            if (_hotbarNameText != null)
+            {
+                _hotbarNameText.text  = "";
+                _hotbarNameText.color = new Color(1f, 1f, 1f, 0f);
+            }
         }
 
         private void Update()
@@ -115,14 +143,26 @@ namespace SkyHarvest.UI
                     _interactPromptText.text = "";
             }
 
-            if (_hotbarNameText != null && _hotbarNameTimer > 0f)
+            if (_hotbarNameText != null && _nameMode != ItemNameDisplayMode.None)
             {
-                _hotbarNameTimer -= Time.deltaTime;
-                float alpha = Mathf.Clamp01(_hotbarNameTimer / 0.3f);  // fade out in last 0.3s
-                var c = _hotbarNameText.color;
-                _hotbarNameText.color = new Color(c.r, c.g, c.b, alpha);
-                if (_hotbarNameTimer <= 0f)
-                    _hotbarNameText.text = "";
+                switch (_nameMode)
+                {
+                    case ItemNameDisplayMode.HotbarPulse:
+                        _hotbarNameTimer -= Time.deltaTime;
+                        _nameAlpha = Mathf.Clamp01(_hotbarNameTimer / NameFadeDuration);
+                        if (_hotbarNameTimer <= 0f)
+                        {
+                            _nameMode = ItemNameDisplayMode.None;
+                            _nameAlpha = 0f;
+                            _hotbarNameText.text = "";
+                        }
+                        break;
+                    case ItemNameDisplayMode.InventoryHover:
+                        _nameAlpha = Mathf.Min(1f, _nameAlpha + Time.deltaTime / NameFadeDuration);
+                        break;
+                }
+
+                _hotbarNameText.color = new Color(1f, 1f, 1f, _nameAlpha);
             }
         }
 

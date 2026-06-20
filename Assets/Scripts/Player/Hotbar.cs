@@ -1,6 +1,7 @@
 // Hotbar = inventory slots 0-9 (same array as backpack; Minecraft layout).
 using UnityEngine;
 using SkyHarvest.Core;
+using SkyHarvest.Island;
 
 namespace SkyHarvest.Player
 {
@@ -103,6 +104,8 @@ namespace SkyHarvest.Player
 
         private void Update()
         {
+            if (StairCutoutEditor.BlocksGameplayInput) return;
+
             int n = Model.SlotCount;
             for (int i = 0; i < n; i++)
             {

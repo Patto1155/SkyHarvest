@@ -97,13 +97,11 @@ namespace SkyHarvest.Building
         {
             if (_ghostGo == null || Camera.main == null) return;
 
-            Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            mouseWorld.z = 0f;
             // Resolve the mouse against the player's tier so the cursor maps to cells on
             // the tier you're standing on, and snap the ghost to that cell's real
             // elevation (so it reads as sitting ON the tier, not flat across the gap).
             int tier = _player != null ? _player.CurrentTier : 0;
-            _ghostGridPos = GridMath.WorldToGrid(new Vector2(mouseWorld.x, mouseWorld.y), tier);
+            _ghostGridPos = GridMath.ScreenToGrid(Camera.main, Input.mousePosition, tier);
 
             float gElev = _island?.GetCell(_ghostGridPos)?.Elevation ?? 0f;
             var worldPos = GridMath.GridToWorld(_ghostGridPos, gElev);

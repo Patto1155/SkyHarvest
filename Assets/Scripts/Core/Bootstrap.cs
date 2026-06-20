@@ -11,6 +11,7 @@ using SkyHarvest.Storage;
 using SkyHarvest.UI;
 using SkyHarvest.Audio;
 using SkyHarvest.SaveLoad;
+using SkyHarvest.DevTools;
 
 namespace SkyHarvest.Core
 {
@@ -34,6 +35,7 @@ namespace SkyHarvest.Core
         private UI.GameCursor?       _gameCursor;
         private UI.MinimapController? _minimapCtrl;
         private GameObject?           _keybindPanel;
+        private DevDebugPanel?        _devDebugPanel;
 
         private bool _gameStarted;
 
@@ -52,9 +54,55 @@ namespace SkyHarvest.Core
 
         private void Start()
         {
+            if (HasCommandLineFlag("--dev"))
+            {
+                StartDevSession();
+                return;
+            }
+
             bool hasSave = SaveManager.Instance?.HasSave() == true;
             _mainMenu?.Open();
             if (hasSave) { } // continue button will be active
+        }
+
+        /// <summary>Dev-watch / agent loop: skip menu, new game, carved stairs, view the boundary.</summary>
+        private void StartDevSession()
+        {
+            _mainMenu?.Close();
+            int seed = PlayerPrefs.HasKey("IslandSeed") ? PlayerPrefs.GetInt("IslandSeed") : Random.Range(0, 999999);
+            var island = StarterIsland.Build(seed);
+            island.CarveStairs(StarterIsland.FrontStairCell);
+            _gm?.SetIsland(island);
+            _islandRenderer?.Render(island);
+
+            Vector2 spawn = GridMath.GridToWorld(new Vector2Int(1, 3));
+            SpawnPlayer(new Vector3(spawn.x, spawn.y, 0f));
+            if (_player != null) _player.Island = island;
+            WireUIToPlayer();
+            WireBuildMode(island);
+
+            var debrisSpawner = Object.FindObjectOfType<DebrisSpawner>();
+            debrisSpawner?.SetIsland(island);
+
+            WeatherManager.Instance?.StartWeather();
+            WireGameCursor(island);
+            WireDevDebug(island);
+            EventBus.Publish(new GameStartedEvent { LoadedFromSave = false });
+            _gameStarted = true;
+
+            if (_player != null)
+            {
+                Vector2 stair = GridMath.GridToWorld(StarterIsland.FrontStairCell);
+                _player.transform.position = new Vector3(stair.x, stair.y, 0f);
+            }
+        }
+
+        private static bool HasCommandLineFlag(string flag)
+        {
+            var args = System.Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
+                if (args[i] == flag) return true;
+            return false;
         }
 
         // ─────────────────────────────────────────────────────────────────────
@@ -70,6 +118,14 @@ namespace SkyHarvest.Core
             new GameObject("CropGrowthSystem").AddComponent<CropGrowthSystem>();
             new GameObject("StructureRegistry").AddComponent<StructureRegistry>();
             new GameObject("AudioCueSystem").AddComponent<AudioCueSystem>();
+
+            StairCutoutEditor.EnableIfRequested();
+            if (StairCutoutEditor.IsEnabled)
+                new GameObject("StairCutoutEditor").AddComponent<StairCutoutEditor>();
+
+            DevDebugPanel.EnableIfRequested();
+            if (DevDebugPanel.IsEnabled)
+                _devDebugPanel = new GameObject("DevDebugPanel").AddComponent<DevDebugPanel>();
         }
 
         private void BuildCamera()
@@ -340,6 +396,7 @@ namespace SkyHarvest.Core
             WeatherManager.Instance?.StartWeather();
 
             WireGameCursor(island);
+            WireDevDebug(island);
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = false });
             _gameStarted = true;
         }
@@ -437,6 +494,7 @@ namespace SkyHarvest.Core
             WeatherManager.Instance?.StartWeather();
 
             WireGameCursor(island);
+            WireDevDebug(island);
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = true });
             _gameStarted = true;
         }
@@ -619,6 +677,12 @@ namespace SkyHarvest.Core
             if (bmc == null) return;
             bmc.SetIsland(island);
             if (_player != null) bmc.SetPlayer(_player);
+        }
+
+        private void WireDevDebug(IslandData island)
+        {
+            if (_devDebugPanel == null || _player == null || Camera.main == null) return;
+            _devDebugPanel.Initialize(island, _player, Camera.main);
         }
 
         // Centralized hotkeys. Panels no longer read Tab/Esc themselves — having

@@ -22,6 +22,9 @@ STONE_R = material_ramp(core.STONE, 5, 0.45, 1.5)
 # the forge reads as fire-baked brick (matches the painted reference), not grey concrete.
 WARMSTONE = lerp(core.STONE, core.RUST, 0.32)
 WARMSTONE_R = material_ramp(WARMSTONE, 5, 0.5, 1.6)
+# Dark kiln stone for the concept-art forge body (sooty cliff-rock, not bright grey).
+KILNSTONE = lerp(lerp(core.STONE, core.CHARCOAL, 0.45), core.RUST, 0.22)
+KILNSTONE_R = material_ramp(KILNSTONE, 5, 0.42, 1.35)
 RUST_R = material_ramp(core.RUST, 5, 0.45, 1.4)
 IRON_R = material_ramp(shade(core.STONE, 0.7), 5, 0.4, 1.6)
 ROPE = lerp(core.TIMBER, core.FOG, 0.35)
@@ -536,49 +539,64 @@ def stone_mill():
     return frames
 
 
+def _smoke_wisps(c, cx, start_y, rng, count=10):
+    """Grey smoke curling up from a chimney — matches the concept-art forge."""
+    smoke = shade(core.FOG, 0.50)
+    smoke_dark = shade(core.STORM, 0.75)
+    for _ in range(count):
+        x = cx + rng.randint(-5, 5)
+        y = start_y - rng.randint(1, 30)
+        col = smoke if rng.random() > 0.35 else smoke_dark
+        c.set(x, y, col)
+        if rng.random() > 0.45:
+            c.set(x + rng.choice([-1, 1]), y - 1, col)
+        if rng.random() > 0.7:
+            c.set(x, y - 2, shade(col, 0.85))
+
+
 # ===========================================================================
 # forge 128x128, 4 frames (ember glow pulse)
 # ===========================================================================
 def forge():
-    """Isometric stone furnace: a chunky dimetric box (top + two side faces),
-    a chimney stack rising from the back, an arched mouth glowing on the
-    camera-facing right face, and an anvil block out front. 4 ember frames."""
+    """Isometric stone kiln matching the gritty sky-farm concept art:
+    bulbous dark stone body, hooded chimney with smoke, large arched hearth
+    with bright coals, warm ground spill, shovel leaning on the side."""
     W, Hh = 128, 128
     frames = []
-    glow_levels = [0.45, 0.75, 1.0, 0.65]  # ember pulse over 4 frames
+    glow_levels = [0.50, 0.80, 1.0, 0.68]
     cx = 64
-    # Anchor footprint bottom vertex near the frame bottom (pivot = bottom-centre in Unity).
     base_y = 120
-    hw_b, hh_b = 26, 13        # ~0.85 tile footprint (was 30/15 — read too large in-game)
-    hw_t, hh_t = 18, 9         # tapered top
-    body_h = 30
-    cyt = base_y - hh_b - body_h   # top diamond centre
+    # Bulbous dome: wide base tapering to a narrow crown (kiln, not a box).
+    hw_b, hh_b = 28, 14
+    hw_t, hh_t = 11, 5
+    body_h = 34
+    cyt = base_y - hh_b - body_h
 
     def crack(x, y):
-        return (int(x * 131 + y * 71) % 23) == 0
+        return (int(x * 131 + y * 71) % 19) == 0
 
-    def stone_top(x, y, v):
-        col = WARMSTONE_R[3]
-        if x % 9 == 0 or y % 5 == 0:
-            col = shade(col, 0.82)
+    def kiln_top(x, y, v):
+        col = KILNSTONE_R[3]
+        if x % 8 == 0 or y % 4 == 0:
+            col = shade(col, 0.80)
         return col
 
-    def stone_left(x, y, v):    # lit face (light from upper-left)
-        i = 2 + (1 if v > 0.6 else 0)
-        col = shade(WARMSTONE_R[min(4, i)], 1.06)
-        if y % 7 == 0 or x % 9 == 0:
-            col = shade(col, 0.72)                        # mortar course
+    def kiln_left(x, y, v):
+        i = 2 + (1 if v > 0.55 else 0)
+        col = shade(KILNSTONE_R[min(4, i)], 1.02)
+        if y % 6 == 0 or x % 8 == 0:
+            col = shade(col, 0.70)
         elif crack(x, y):
-            col = shade(col, 0.6)                         # crack
+            col = shade(col, 0.58)
         return col
 
-    def stone_right(x, y, v):   # shadowed face
-        i = 1 + (1 if v > 0.6 else 0)
-        col = WARMSTONE_R[max(0, i)]
-        if y % 7 == 0 or x % 9 == 0:
-            col = shade(col, 0.72)
+    def kiln_right(x, y, v):
+        i = 1 + (1 if v > 0.55 else 0)
+        col = KILNSTONE_R[max(0, i)]
+        if y % 6 == 0 or x % 8 == 0:
+            col = shade(col, 0.70)
         elif crack(x + 5, y):
-            col = shade(col, 0.62)
+            col = shade(col, 0.60)
         return col
 
     for f in range(4):
@@ -586,39 +604,37 @@ def forge():
         rng = core.rng_for(f"forge_{f}")
         g = glow_levels[f]
 
-        # contact shadow hugging the footprint (opaque — semi-alpha reads as ghost over void)
         _shadow(c, cx, base_y - hh_b + 3, hw_b + 3, hh_b - 2, opaque=True)
 
-        # --- main furnace mass (tapered frustum: beehive-ish body) ---
+        # --- bulbous kiln body ---
         core.iso_frustum(c, cx, base_y, hw_b, hh_b, hw_t, hh_t, body_h,
-                         stone_top, stone_left, stone_right)
+                         kiln_top, kiln_left, kiln_right)
 
-        # --- chimney: square stone stack rising from the (smaller) top CENTRE, flared hood ---
-        ch_cx = cx + 2
-        ch_hw, ch_hh, ch_h = 7, 3, 24
-        ch_base = cyt + ch_hh                    # seat the stack on the tapered top-face centre
+        # --- chimney: squat square stack with flared hood (concept art) ---
+        ch_cx = cx - 2
+        ch_hw, ch_hh, ch_h = 8, 4, 22
+        ch_base = cyt + ch_hh
         core.iso_box(c, ch_cx, ch_base, ch_hw, ch_hh, ch_h,
-                     lambda x, y, v: WARMSTONE_R[3],
-                     lambda x, y, v: WARMSTONE_R[2] if y % 8 >= 1 else shade(WARMSTONE_R[2], 0.7),
-                     lambda x, y, v: WARMSTONE_R[1] if y % 8 >= 1 else shade(WARMSTONE_R[1], 0.7))
-        # flared hood cap (wider, slightly darker) — the reference chimney pot
+                     lambda x, y, v: KILNSTONE_R[3],
+                     lambda x, y, v: KILNSTONE_R[2] if y % 7 >= 1 else shade(KILNSTONE_R[2], 0.68),
+                     lambda x, y, v: KILNSTONE_R[1] if y % 7 >= 1 else shade(KILNSTONE_R[1], 0.68))
         cap_base = ch_base - ch_h
-        cap_h = 5
-        core.iso_box(c, ch_cx, cap_base, ch_hw + 2, ch_hh + 1, cap_h,
-                     shade(WARMSTONE_R[2], 0.92), shade(WARMSTONE_R[1], 0.95), shade(WARMSTONE_R[0], 1.05))
-        # dark flue opening on top of the hood (smoke source)
+        cap_h = 6
+        core.iso_box(c, ch_cx, cap_base, ch_hw + 3, ch_hh + 1, cap_h,
+                     shade(KILNSTONE_R[2], 0.90), shade(KILNSTONE_R[1], 0.94), shade(KILNSTONE_R[0], 1.06))
         flue_cy = (cap_base - cap_h) - (ch_hh + 1)
-        c.ellipse(ch_cx, flue_cy, ch_hw - 2, ch_hh - 1, core.CHARCOAL)
-        c.ellipse(ch_cx, flue_cy, ch_hw - 3, ch_hh - 2,
-                  lerp(core.CHARCOAL, core.FORGE, 0.12 + g * 0.18))  # faint inner ember glow
+        c.ellipse(ch_cx, flue_cy, ch_hw - 1, ch_hh, core.CHARCOAL)
+        c.ellipse(ch_cx, flue_cy, ch_hw - 2, ch_hh - 1,
+                  lerp(core.CHARCOAL, core.FORGE, 0.10 + g * 0.15))
+        _smoke_wisps(c, ch_cx, flue_cy - 2, rng, count=int(8 + g * 4))
 
-        # --- the forge ARCH: voussoir stone ring + glowing hearth, on the camera face ---
-        ember = lerp(core.FORGE, core.AMBER, g * 0.4)
-        core_c = lerp((255, 240, 180), ember, 1 - g)
-        acx = cx + 11
-        hearth_y = base_y - 6          # bottom of the opening
-        ow, sh, rw = 8, 6, 3           # opening half-width, straight jamb height, ring thickness
-        springline = hearth_y - sh     # where the semicircular top begins
+        # --- large arched hearth on the camera-facing face ---
+        ember = lerp(core.FORGE, core.AMBER, g * 0.45)
+        core_c = lerp((255, 245, 200), ember, 1 - g * 0.3)
+        acx = cx + 12
+        hearth_y = base_y - 4
+        ow, sh, rw = 10, 8, 3
+        springline = hearth_y - sh
 
         def _in_open(x, y):
             dx = x - acx
@@ -637,46 +653,56 @@ def forge():
                 return True
             return dx * dx + (y - springline) ** 2 <= o * o
 
-        # voussoir arch ring (banded wedge-stones following the arch)
+        # voussoir arch ring
         for y in range(springline - ow - rw, hearth_y + 1):
             for x in range(acx - ow - rw, acx + ow + rw + 1):
                 if _in_outer(x, y) and not _in_open(x, y):
                     dy = y - springline
                     if dy < 0:
                         ang = math.atan2(-dy, x - acx)
-                        seam = int(ang / math.pi * 7) % 2 == 0
+                        seam = int(ang / math.pi * 8) % 2 == 0
                     else:
                         seam = (y // 3) % 2 == 0
-                    base = WARMSTONE_R[3] if x <= acx else WARMSTONE_R[2]
-                    c.set(x, y, shade(base, 0.78) if seam else base)
-        # glowing hearth interior (bright coals at the bottom, dark up top)
+                    base = KILNSTONE_R[3] if x <= acx else KILNSTONE_R[2]
+                    c.set(x, y, shade(base, 0.76) if seam else base)
+
+        # bright hearth interior
         for y in range(springline - ow, hearth_y + 1):
             for x in range(acx - ow, acx + ow + 1):
                 if _in_open(x, y):
                     t = (hearth_y - y) / max(1, (hearth_y - (springline - ow)))
-                    col = lerp(core_c, lerp(ember, core.CHARCOAL, 0.6), t)
-                    c.set(x, y, shade(col, 0.5 + g * 0.5))
-        # bright coal bed at the bottom
+                    col = lerp(core_c, lerp(ember, core.CHARCOAL, 0.55), t)
+                    c.set(x, y, shade(col, 0.55 + g * 0.45))
+
+        # coal bed
         for x in range(acx - ow + 1, acx + ow):
-            for y in range(hearth_y - 3, hearth_y + 1):
-                if _in_open(x, y) and rng.random() < 0.6 + g * 0.3:
-                    c.set(x, y, lerp(ember, (255, 250, 200), g))
-        # stone hearth shelf / apron under the opening
-        c.rect(acx - ow - 2, hearth_y + 1, acx + ow + 2, hearth_y + 2, WARMSTONE_R[1])
-        c.hline(acx - ow - 2, acx + ow + 2, hearth_y + 1, WARMSTONE_R[3])  # lit front lip
+            for y in range(hearth_y - 4, hearth_y + 1):
+                if _in_open(x, y) and rng.random() < 0.55 + g * 0.35:
+                    c.set(x, y, lerp(ember, (255, 252, 210), g))
 
-        # --- anvil out front-left, as a little iso block ---
-        ax, ay = cx - 15, base_y + 1
-        core.iso_box(c, ax, ay, 7, 3, 6, IRON_R[3], IRON_R[2], IRON_R[1])
-        c.rect(ax + 3, ay - 11, ax + 10, ay - 9, IRON_R[3])  # horn overhang
+        # stone hearth apron
+        c.rect(acx - ow - 3, hearth_y + 1, acx + ow + 4, hearth_y + 3, KILNSTONE_R[1])
+        c.hline(acx - ow - 3, acx + ow + 4, hearth_y + 1, shade(KILNSTONE_R[3], 1.08))
 
-        # --- smoke/embers from the flue (no warm ground spill — semi-lerp looked ghostly) ---
-        n_sparks = int(2 + g * 6)
-        for _ in range(n_sparks):
+        # warm ground spill in front of the hearth (concept-art fire glow on dirt)
+        for x in range(acx - ow - 2, acx + ow + 8):
+            for y in range(hearth_y + 3, hearth_y + 8):
+                if rng.random() < 0.22 + g * 0.28:
+                    c.set(x, y, lerp(ember, shade(core.CHARCOAL, 0.7), rng.random() * 0.6))
+
+        # shovel leaning against the left face
+        sx, sy = cx - hw_b + 6, base_y - 10
+        c.line(sx, sy, sx - 5, sy - 30, shade(core.TIMBER, 0.55))
+        c.line(sx - 1, sy, sx - 6, sy - 30, shade(core.TIMBER, 0.45))
+        c.rect(sx - 10, sy - 33, sx - 3, sy - 28, shade(core.STONE, 0.75))
+        c.hline(sx - 10, sx - 3, sy - 28, shade(core.STONE, 0.95))
+
+        # ember sparks from the flue
+        for _ in range(int(2 + g * 5)):
             x = ch_cx + rng.randint(-3, 3)
-            y = flue_cy - rng.randint(1, 16)
-            col = rng.choice([core.FORGE, core.AMBER, (255, 220, 150)])
-            c.set(x, y, col)
+            y = flue_cy - rng.randint(1, 12)
+            c.set(x, y, rng.choice([core.FORGE, core.AMBER, (255, 220, 150)]))
+
         frames.append(_finish(c, warm=True))
     return frames
 

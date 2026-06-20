@@ -22,9 +22,11 @@ Failure exits with code `1` and prints which step failed. Logs are written under
 
 | Step | Script / tool | What it proves |
 |------|----------------|----------------|
-| 1 | `tools/check.sh` | Game C# compiles against Unity stubs on **.NET 8**; **73** NUnit logic tests pass (no Unity editor required). |
+| 1 | `tools/check.sh` | Game C# compiles against Unity stubs on **.NET 8**; **134+** NUnit logic tests pass (no Unity editor required). |
 | 2 | Unity batch mode | Project opens headlessly; **no `error CS` compile errors** in the real Unity compiler. |
-| 3 | Unity EditMode tests | Same **73** tests run inside Unity 2022.3.45f1 via `SkyHarvest.EditModeTests`. |
+| 3 | Unity EditMode tests | Same tests run inside Unity 2022.3.45f1 via `SkyHarvest.EditModeTests`. |
+
+Agent guide to all tiers (verify, visual shot, dev mode): **`docs/agent/TESTING.md`**.
 
 Step 1 is fast (~10s) and is what you want for tight edit/test loops. Steps 2–3 catch Unity-only issues (asmdefs, `#if UNITY_EDITOR`, real test runner) that the CLR harness cannot see.
 

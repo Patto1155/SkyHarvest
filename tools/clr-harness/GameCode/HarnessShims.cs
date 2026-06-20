@@ -1,7 +1,26 @@
-// Harness-only forward declarations for game classes expected from other agents.
-// When a real class is committed to Assets/Scripts, remove its shim entry here.
-// Pattern: namespace SkyHarvest.X { public partial class Y : MonoBehaviour { } }
+// Headless-harness stubs for editor/dev-only types excluded from GameCode compile.
+#if SKYHARVEST_HEADLESS
+using UnityEngine;
+using SkyHarvest.Island;
+using SkyHarvest.Player;
 
-// SpriteAnimator real implementation is in Assets/Scripts/Core/SpriteAnimator.cs
-// SpriteLoader real implementation is in Assets/Scripts/Core/SpriteLoader.cs
-// (no shims needed for these any more)
+namespace SkyHarvest.Island
+{
+    public class StairCutoutEditor : MonoBehaviour
+    {
+        public static bool IsEnabled => false;
+        public static bool BlocksGameplayInput => false;
+        public static void EnableIfRequested() { }
+    }
+}
+
+namespace SkyHarvest.DevTools
+{
+    public class DevDebugPanel : MonoBehaviour
+    {
+        public static bool IsEnabled => false;
+        public static void EnableIfRequested() { }
+        public void Initialize(IslandData island, PlayerController player, Camera cam) { }
+    }
+}
+#endif

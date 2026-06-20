@@ -17,7 +17,7 @@ namespace SkyHarvest.Audio
             _sfx     = gameObject.AddComponent<AudioSource>();
             _ambient = gameObject.AddComponent<AudioSource>();
             _ambient.loop   = true;
-            _ambient.volume = 0.12f;
+            _ambient.volume = 0.10f;
 
             EventBus.Subscribe<CropHarvestedEvent>(_  => PlayHarvest());
             EventBus.Subscribe<CropPlantedEvent>(_    => PlayPlant());
@@ -100,9 +100,9 @@ namespace SkyHarvest.Audio
             };
             float vol = weather switch
             {
-                WeatherType.ClearSkies => 0.015f,
-                WeatherType.FogBank    => 0.02f,
-                _                      => 0.03f
+                WeatherType.ClearSkies => 0.012f,
+                WeatherType.FogBank    => 0.016f,
+                _                      => 0.025f
             };
 
             for (int i = 0; i < samples; i++)

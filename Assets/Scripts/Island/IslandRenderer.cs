@@ -13,6 +13,7 @@
 //   • RenderNewCells also refreshes blend overlays for all 8 neighbours of each
 //     new cell so existing border cells update correctly.
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using SkyHarvest.Core;
 
@@ -36,6 +37,19 @@ namespace SkyHarvest.Island
         // drawn on each diamond edge whose camera-facing neighbour is a lower tier:
         // +y (0,1) = the down-LEFT (SW) edge, +x (1,0) = the down-RIGHT (SE) edge.
         private readonly Dictionary<(bool stair, bool right), Sprite> _faceSprites = new();
+
+        // Carved-stair: custom PNG block and/or procedural cliff face fallback.
+        private Sprite? _carvedStairSw;
+        private Sprite? _carvedStairSe;
+        private Sprite? _stairTrimTowardY;
+        private Sprite? _stairTrimTowardX;
+        private Sprite? _carvedStairFaceCustom;
+        private Sprite? _stairCutoutCustom;
+
+        private const string CarvedStairFacePath = "Sprites/structures/carved_stair_face";
+        private const string StairCutoutPath      = "Sprites/structures/stair_cutoutv2";
+        private const string StairCutoutFallback  = "Sprites/structures/stair_cutout";
+        private static readonly string[] StairCutoutStreamNames = { "stair_cutoutv2.png", "stair_cutout.png" };
 
         // Rim cliff sprites for void-facing outer edges (keyed by rightSide).
         private readonly Dictionary<bool, Sprite> _rimFaceSprites = new();
@@ -63,6 +77,7 @@ namespace SkyHarvest.Island
         public void Render(IslandData island)
         {
             _island = island;
+            StairCutoutLayout.Load();
             DestroyAll();
 
             // Build underlay sprite once at Render time using current config.
@@ -110,7 +125,12 @@ namespace SkyHarvest.Island
                 if (_island.IsValidPosition(sw))
                 {
                     if (myTier > _island.Tier(sw))
-                        AddTierFace(cell, stair: ShowCarvedStairFace(pos, sw), rightSide: false);
+                    {
+                        if (ShowCarvedStairFace(pos, sw))
+                            AddCarvedStair(cell, rightSide: false);
+                        else
+                            AddTierFace(cell, stair: false, rightSide: false);
+                    }
                 }
                 else
                 {
@@ -122,13 +142,20 @@ namespace SkyHarvest.Island
                 if (_island.IsValidPosition(se))
                 {
                     if (myTier > _island.Tier(se))
-                        AddTierFace(cell, stair: ShowCarvedStairFace(pos, se), rightSide: true);
+                    {
+                        if (ShowCarvedStairFace(pos, se))
+                            AddCarvedStair(cell, rightSide: true);
+                        else
+                            AddTierFace(cell, stair: false, rightSide: true);
+                    }
                 }
                 else
                 {
                     AddRimFace(cell, rightSide: true);
                 }
             }
+
+            EnsureStairCellMasked();
         }
 
         private bool ShowCarvedStairFace(Vector2Int high, Vector2Int low) =>
@@ -137,8 +164,59 @@ namespace SkyHarvest.Island
         /// <summary>Rebuild cliff/stair faces after the tutorial mine (wall → steps).</summary>
         public void RefreshTierWalls()
         {
+            RestoreStairCellSurfaces();
             ClearTierFaces();
+            _faceSprites.Clear();
+            _rimFaceSprites.Clear();
+            _carvedStairSw = null;
+            _carvedStairSe = null;
+            _stairTrimTowardY = null;
+            _stairTrimTowardX = null;
+            _carvedStairFaceCustom = null;
+            _stairCutoutCustom = null;
+            StairCutoutLayout.Load();
             BuildTierWalls();
+        }
+
+        /// <summary>Live cutout transform for the in-game layout editor.</summary>
+        public Transform? GetStairCutoutTransform()
+        {
+            if (!_visuals.TryGetValue(StarterIsland.BackStairCell, out var vis)) return null;
+            var t = vis.Root.transform.Find("StairCutout");
+            return t != null ? t : null;
+        }
+
+        private void RestoreStairCellSurfaces()
+        {
+            if (_island == null) return;
+            foreach (var kvp in _visuals)
+            {
+                var vis = kvp.Value;
+                vis.Tile.enabled = true;
+                vis.BlendRoot.SetActive(true);
+                var underlay = vis.Root.transform.Find("Underlay")?.GetComponent<SpriteRenderer>();
+                if (underlay != null) underlay.enabled = true;
+                var cell = _island.GetCell(kvp.Key);
+                if (cell != null) UpdateOverlay(vis, cell);
+            }
+        }
+
+        private void HideStairCellSurfaceImpl(Vector2Int pos)
+        {
+            if (!_visuals.TryGetValue(pos, out var vis)) return;
+            vis.Tile.enabled = false;
+            vis.Overlay.enabled = false;
+            vis.BlendRoot.SetActive(false);
+            var underlay = vis.Root.transform.Find("Underlay")?.GetComponent<SpriteRenderer>();
+            if (underlay != null) underlay.enabled = false;
+        }
+
+        /// <summary>Mask the upper stair cell whenever carved stairs use the PNG cutout.</summary>
+        private void EnsureStairCellMasked()
+        {
+            if (_island == null || !_island.StairsCarved) return;
+            if (LoadStairCutoutTexture() == null) return;
+            HideStairCellSurfaceImpl(StarterIsland.BackStairCell);
         }
 
         private void ClearTierFaces()
@@ -151,25 +229,146 @@ namespace SkyHarvest.Island
                 {
                     var child = t.GetChild(i);
                     var n = child.name;
-                    if (n == "WallFace" || n == "StairFace" || n == "RimFace")
+                    if (n == "WallFace" || n == "StairFace" || n == "StairCutout" || n == "StairTileTrim" || n == "RimFace")
                         Destroy(child.gameObject);
                 }
             }
         }
 
-        private Sprite FaceSprite(bool stair, bool rightSide)
+        private Sprite FaceSprite(bool rightSide)
         {
-            var key = (stair, rightSide);
+            var key = (false, rightSide);
             if (_faceSprites.TryGetValue(key, out var sp)) return sp;
 
-            // TierFaceH = 16 (slope half) + 32 (elevation step) = 48px, which
-            // correctly bridges from the raised tile's camera edge down to the lower
-            // tile's matching edge (the old value of 32 was too short and misaligned).
-            sp = stair
-                ? ProcGfx.IsoTierFace(new Color(0.54f, 0.46f, 0.35f), new Color(0.27f, 0.22f, 0.18f), TierFaceH, true,  rightSide)
-                : ProcGfx.IsoTierFace(new Color(0.40f, 0.37f, 0.34f), new Color(0.19f, 0.17f, 0.16f), TierFaceH, false, rightSide);
+            sp = ProcGfx.IsoTierFace(new Color(0.44f, 0.40f, 0.36f), new Color(0.16f, 0.14f, 0.12f), TierFaceH, false, rightSide);
             _faceSprites[key] = sp;
             return sp;
+        }
+
+        private Sprite? TryLoadStairCutout()
+        {
+            if (_stairCutoutCustom != null) return _stairCutoutCustom;
+
+            var tex = LoadStairCutoutTexture();
+            if (tex == null) return null;
+
+            tex.filterMode = FilterMode.Point;
+            float ppu = tex.height / StairCutoutLayout.Current.heightWorld;
+            _stairCutoutCustom = Sprite.Create(
+                tex,
+                new Rect(0, 0, tex.width, tex.height),
+                new Vector2(0.5f, 0f),
+                ppu);
+            return _stairCutoutCustom;
+        }
+
+        private static Texture2D? LoadStairCutoutTexture()
+        {
+            foreach (var name in StairCutoutStreamNames)
+            {
+                string streamPath = Path.Combine(Application.streamingAssetsPath, name);
+                var tex = LoadCutoutFromFile(streamPath);
+                if (tex != null) return tex;
+            }
+
+            return Resources.Load<Texture2D>(StairCutoutPath)
+                ?? Resources.Load<Texture2D>(StairCutoutFallback);
+        }
+
+        private static Texture2D? LoadCutoutFromFile(string path)
+        {
+            if (!File.Exists(path)) return null;
+            try
+            {
+                var bytes = File.ReadAllBytes(path);
+                var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false)
+                {
+                    filterMode = FilterMode.Point,
+                    wrapMode   = TextureWrapMode.Clamp,
+                };
+                return tex.LoadImage(bytes) ? tex : null;
+            }
+            catch (IOException e)
+            {
+                Debug.LogWarning($"[IslandRenderer] Cutout load failed ({path}): {e.Message}");
+                return null;
+            }
+        }
+
+        private Sprite? TryLoadCarvedStairFaceCustom(bool rightSide)
+        {
+            if (rightSide) return null;
+            if (_carvedStairFaceCustom != null) return _carvedStairFaceCustom;
+
+            var tex = LoadStairFaceTexture();
+            if (tex == null) return null;
+
+            tex.filterMode = FilterMode.Point;
+            // SW tier face — same pivot as ProcGfx.IsoTierFace (rightSide: false).
+            _carvedStairFaceCustom = Sprite.Create(
+                tex,
+                new Rect(0, 0, tex.width, tex.height),
+                new Vector2(1f, 1f),
+                Constants.PixelsPerUnit);
+            return _carvedStairFaceCustom;
+        }
+
+        /// <summary>StreamingAssets override (no rebuild) wins over Resources.</summary>
+        private static Texture2D? LoadStairFaceTexture()
+        {
+            string streamPath = Path.Combine(Application.streamingAssetsPath, "carved_stair_face.png");
+            if (File.Exists(streamPath))
+            {
+                try
+                {
+                    var bytes = File.ReadAllBytes(streamPath);
+                    var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false)
+                    {
+                        filterMode = FilterMode.Point,
+                        wrapMode   = TextureWrapMode.Clamp,
+                    };
+                    if (tex.LoadImage(bytes))
+                        return tex;
+                }
+                catch (IOException e)
+                {
+                    Debug.LogWarning($"[IslandRenderer] StreamingAssets stair face load failed: {e.Message}");
+                }
+            }
+
+            return Resources.Load<Texture2D>(CarvedStairFacePath);
+        }
+
+        private Sprite CarvedStairFaceSprite(bool rightSide)
+        {
+            if (rightSide)
+            {
+                if (_carvedStairSe != null) return _carvedStairSe;
+                _carvedStairSe = ProcGfx.IsoCarvedStairFace(
+                    new Color(0.46f, 0.43f, 0.39f), new Color(0.18f, 0.16f, 0.14f),
+                    new Color(0.55f, 0.51f, 0.46f), TierFaceH, rightSide: true);
+                return _carvedStairSe;
+            }
+
+            if (_carvedStairSw != null) return _carvedStairSw;
+            _carvedStairSw = ProcGfx.IsoCarvedStairFace(
+                new Color(0.46f, 0.43f, 0.39f), new Color(0.18f, 0.16f, 0.14f),
+                new Color(0.55f, 0.51f, 0.46f), TierFaceH, rightSide: false);
+            return _carvedStairSw;
+        }
+
+        private Sprite StairTileTrimSprite(bool rightSide)
+        {
+            if (rightSide)
+            {
+                if (_stairTrimTowardX != null) return _stairTrimTowardX;
+                _stairTrimTowardX = ProcGfx.IsoStairTileTrim(new Color(0.46f, 0.43f, 0.39f), towardPlusY: false);
+                return _stairTrimTowardX;
+            }
+
+            if (_stairTrimTowardY != null) return _stairTrimTowardY;
+            _stairTrimTowardY = ProcGfx.IsoStairTileTrim(new Color(0.46f, 0.43f, 0.39f), towardPlusY: true);
+            return _stairTrimTowardY;
         }
 
         private Sprite RimFaceSprite(bool rightSide)
@@ -192,13 +391,54 @@ namespace SkyHarvest.Island
         {
             if (!_visuals.TryGetValue(cell.GridPos, out var vis)) return;
 
-            var go = new GameObject(stair ? "StairFace" : "WallFace");
+            var go = new GameObject("WallFace");
             go.transform.SetParent(vis.Root.transform);
             go.transform.localPosition = new Vector3(0f, FaceYOffset, 0f);
 
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = FaceSprite(stair, rightSide);
+            sr.sprite = FaceSprite(rightSide);
             sr.sortingOrder = vis.SortBase + 1;
+        }
+
+        /// <summary>
+        /// Carved stair on the middle upper cell: authored cutout PNG seated in the tier gap,
+        /// flanked by normal cliff walls on (0,1) and (2,1). Falls back to procedural cliff face.
+        /// </summary>
+        private void AddCarvedStair(IslandCell cell, bool rightSide)
+        {
+            if (!_visuals.TryGetValue(cell.GridPos, out var vis)) return;
+
+            if (!rightSide && TryLoadStairCutout() is Sprite cutout)
+            {
+                HideStairCellSurfaceImpl(cell.GridPos);
+
+                var cutGo = new GameObject("StairCutout");
+                cutGo.transform.SetParent(vis.Root.transform);
+                var cutSr = cutGo.AddComponent<SpriteRenderer>();
+                cutSr.sprite       = cutout;
+                cutSr.sortingOrder = vis.SortBase + 1;
+                StairCutoutLayout.ApplyTransform(cutGo.transform);
+                return;
+            }
+
+            var customFace = TryLoadCarvedStairFaceCustom(rightSide);
+
+            var faceGo = new GameObject("StairFace");
+            faceGo.transform.SetParent(vis.Root.transform);
+            faceGo.transform.localPosition = new Vector3(0f, FaceYOffset, 0f);
+            var faceSr = faceGo.AddComponent<SpriteRenderer>();
+            faceSr.sprite       = customFace ?? CarvedStairFaceSprite(rightSide);
+            faceSr.sortingOrder = vis.SortBase + 1;
+
+            if (customFace == null)
+            {
+                var trimGo = new GameObject("StairTileTrim");
+                trimGo.transform.SetParent(vis.Root.transform);
+                trimGo.transform.localPosition = Vector3.zero;
+                var trimSr = trimGo.AddComponent<SpriteRenderer>();
+                trimSr.sprite       = StairTileTrimSprite(rightSide);
+                trimSr.sortingOrder = vis.SortBase + 2600;
+            }
         }
 
         private void AddRimFace(IslandCell cell, bool rightSide)

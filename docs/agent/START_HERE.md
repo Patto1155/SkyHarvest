@@ -1,19 +1,33 @@
 # Agent handoff — read this first
 
-Low-context entry point for continuing SkyHarvest development. Read these 4 files (all short), then start:
+Low-context entry point for continuing SkyHarvest development. Read these 5 files (all short), then start:
 
 1. **START_HERE.md** (this) — state + read order.
-2. **WORKFLOW.md** — exact commands to compile, test, run the game, build, and screenshot-verify. The Unity admin-dialog gotcha lives here.
-3. **NEXT_SESSION.md** — the prioritized task list to execute.
-4. **MAP.md** — terse file/system map so you don't re-explore.
+2. **TESTING.md** — which test loop to use (check / verify / shot / dev mode); read before running anything expensive.
+3. **WORKFLOW.md** — exact commands to compile, test, run the game, build, and screenshot-verify. The Unity admin-dialog gotcha lives here.
+4. **NEXT_SESSION.md** — the prioritized task list to execute.
+5. **MAP.md** — terse file/system map so you don't re-explore.
 
 Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliation table (kept current; update it when you close a gap).
 
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
+## Current state (2026-06-18, session 8 — stair cutout + corridor climb + dev debug)
+
+- **On `main`, commit `11e9e51`** — carved stair art path for the starter island:
+  - `stair_cutoutv2.png` + `stair_cutout_layout.json` (StreamingAssets); F8 layout editor in `--dev`.
+  - `StairWalkMath` corridor between tiers; `PlayerController` clamp/exit + `SyncTierFromPosition`.
+  - F3 dev debug panel (`Dev/DevDebugPanel.cs`) — diamond hitboxes, terrain categories, stair corridor GL overlay.
+  - `GridMath.DiamondCentre` fixes walk bounds (no more walking off tile edges).
+- **Session 8b (same day, uncommitted)** — harness + irrigation + polish:
+  - `tools/check.sh` green again (134 NUnit; excludes `Dev/**` from CLR compile).
+  - `SpringIrrigation` MVP for `NaturalSpring` neighbours.
+  - `PlayModeVerify` Skynet step relaxed; Till+Sow seed-slot fix already in harness source.
+  - `visual.json` cozy nudge; softer procedural ambient volume.
+
 ## Current state (2026-06-16, session 7 — playtest bugfixes + 7 polish PRs)
 
-- **Branch `feat/bugfixes-and-session-prs` (commit `6c98a7e`, NOT yet merged/pushed)** — two
+- **Merged to `main` via session 7 work (commit `6c98a7e` and follow-ons)** — two
   batches of work landed in one session, on top of the session-6 starter-island work below:
   1. **Patrick's playtest bug list**, all fixed:
      - `PlayerController.FacingOffset` had N/S **inverted** for the dimetric projection

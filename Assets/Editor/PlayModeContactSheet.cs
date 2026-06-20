@@ -125,6 +125,8 @@ public static class PlayModeContactSheet
         {
             var island = GameManager.Instance?.CurrentIsland;
             if (island == null) return;
+            if (!island.StairsCarved)
+                island.CarveStairs(StarterIsland.FrontStairCell);
             var bmc = BuildModeController.Instance;
             var renderer = Object.FindObjectOfType<IslandRenderer>();
 

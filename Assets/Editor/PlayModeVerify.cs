@@ -260,10 +260,9 @@ public static class PlayModeVerify
         if (seedSlot < 0) { Fail("Till + sow", $"{seedId} not in inventory"); return; }
         if (seedSlot >= PlayerInventoryComponent.HotbarSlots)
         {
-            int free = FirstEmptyHotbarSlot(inv);
-            if (free < 0) { Fail("Till + sow", "no free hotbar slot for seed"); return; }
-            inv.SwapSlots(seedSlot, free);
-            seedSlot = free;
+            const int target = 4; // first item hotbar slot (0-3 = tools)
+            inv.SwapSlots(seedSlot, target);
+            seedSlot = target;
         }
         hotbar.SelectSlot(seedSlot);
 
@@ -347,10 +346,10 @@ public static class PlayModeVerify
 
     private static void StepSkynet()
     {
-        var cliff = FindCell(c => c.Terrain == TerrainType.CliffEdge && !StructureRegistry.Instance.HasStructureAt(c.GridPos));
-        if (cliff == null) { Fail("Skynet", "no free cliff-edge cell on this island"); return; }
-        BuildModeController.Instance.PlaceStructure(cliff.GridPos, GameDatabase.GetStructure("skynet"));
-        var net = StructureRegistry.Instance.GetStructureAt(cliff.GridPos) as SkyHarvest.Skynet.Skynet;
+        var cell = FindSkynetCell();
+        if (cell == null) { Fail("Skynet", "no free edge cell for skynet on this island"); return; }
+        BuildModeController.Instance.PlaceStructure(cell.GridPos, GameDatabase.GetStructure("skynet"));
+        var net = StructureRegistry.Instance.GetStructureAt(cell.GridPos) as SkyHarvest.Skynet.Skynet;
         if (net == null) { Fail("Skynet", "component missing"); return; }
 
         net.InitializeOfflineAccrual(DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 700); // ~4 rolls
@@ -505,6 +504,17 @@ public static class PlayModeVerify
     private static IslandCell FindCropCell() =>
         FindCell(c => TerrainProperties.CanPlaceCrops(c.Terrain) && !c.IsTilled &&
                       !StructureRegistry.Instance.HasStructureAt(c.GridPos));
+
+    private static IslandCell? FindSkynetCell()
+    {
+        var cliff = FindCell(c => c.Terrain == TerrainType.CliffEdge &&
+                                  !StructureRegistry.Instance.HasStructureAt(c.GridPos));
+        if (cliff != null) return cliff;
+
+        return FindCell(c => c.IsEdge &&
+                             !StructureRegistry.Instance.HasStructureAt(c.GridPos) &&
+                             _island.IsWalkable(c.GridPos));
+    }
 
     private static IslandCell FindCell(Func<IslandCell, bool> pred)
     {
