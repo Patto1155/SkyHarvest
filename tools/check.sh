@@ -25,6 +25,7 @@ dotnet() { "$DOTNET" "$@"; }
 
 STUBS="$SCRIPT_DIR/clr-harness/UnityStubs/UnityStubs.csproj"
 GAME="$SCRIPT_DIR/clr-harness/GameCode/GameCode.csproj"
+EDITOR="$SCRIPT_DIR/clr-harness/EditorCode/EditorCode.csproj"
 TESTS="$SCRIPT_DIR/clr-harness/Tests/Tests.csproj"
 
 RESTORE_FLAG=""
@@ -37,6 +38,9 @@ dotnet build "$STUBS" $RESTORE_FLAG -c Debug -v quiet
 
 echo "=== Building GameCode ==="
 dotnet build "$GAME" $RESTORE_FLAG -c Debug -v quiet
+
+echo "=== Building Editor scripts (verify harness / screenshots / build script) ==="
+dotnet build "$EDITOR" $RESTORE_FLAG -c Debug -v quiet
 
 echo "=== Building Tests ==="
 dotnet build "$TESTS" $RESTORE_FLAG -c Debug -v quiet

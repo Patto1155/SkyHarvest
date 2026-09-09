@@ -136,6 +136,9 @@ namespace SkyHarvest.Sim
                         case AutomationStructure a when a.Device != null:
                             sim.Devices.Add(a.Device);
                             break;
+                        case RainCatcher:
+                            sim.RainCatchers++;
+                            break;
                         case WorkshopBase wb:
                             sim.Workshops.Add(new SimWorkshop { GridPos = wb.GridPosition, Process = wb.Process, Tag = wb });
                             break;

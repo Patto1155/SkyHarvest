@@ -123,6 +123,38 @@ public class IslandSimTests
     }
 
     [Test]
+    public void Ripening_Is_Reported_Even_With_No_Automation_At_All()
+    {
+        // The day-one idle payoff: water your plots, close the app, come back to ripe crops.
+        AddPlot(0, 0, "sky_moss", water: 100f);
+        AddPlot(1, 0, "sky_moss", water: 100f);
+        Finish();
+
+        var report = _sim.Advance(600, capped: false);
+
+        Assert.AreEqual(2, report.CropsRipened);
+        Assert.IsTrue(report.HasAnythingToShow);
+    }
+
+    [Test]
+    public void Ripening_Is_Counted_Once_Per_Crop()
+    {
+        AddPlot(0, 0, "sky_moss", water: 100f);
+        Finish();
+        var report = _sim.Advance(3600, capped: false);   // long past ripe
+        Assert.AreEqual(1, report.CropsRipened);
+    }
+
+    [Test]
+    public void Rain_Catchers_Trickle_Into_The_Network_While_Away()
+    {
+        _sim.RainCatchers = 2;
+        Finish();
+        _sim.Step(100f, SimEnvironment.Offline, tickCrops: false, tickWorkshops: false, new OfflineReport());
+        Assert.AreEqual(2 * IslandSim.RainCatcherInflowPerSecond * 100f, _sim.Water.Stored, 0.01f);
+    }
+
+    [Test]
     public void Offline_Environment_Has_No_Wind_So_Nothing_Dies()
     {
         var plot = AddPlot(0, 0, "sky_moss");

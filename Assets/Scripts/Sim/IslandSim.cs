@@ -13,6 +13,7 @@ namespace SkyHarvest.Sim
     {
         public const float DefaultStepSeconds = Constants.OfflineStepSeconds;
         public const float SpringInflowPerSecond = 0.2f;
+        public const float RainCatcherInflowPerSecond = 0.05f;
 
         public readonly List<SimPlot>          Plots     = new();
         public readonly List<SimStorage>       Storages  = new();
@@ -22,6 +23,9 @@ namespace SkyHarvest.Sim
         public WaterNetwork Water { get; }
         public PowerGrid    Power { get; }
         public int SpringCells { get; set; }
+        /// <summary>Rain catchers are open to the sky, so they trickle in even while away —
+        /// the first water income a player can build without reaching the forge.</summary>
+        public int RainCatchers { get; set; }
         public System.Random Rng { get; set; } = new System.Random();
 
         private readonly List<Sprinkler>   _sprinklers = new();
@@ -83,7 +87,8 @@ namespace SkyHarvest.Sim
             float dtMinutes = dtSeconds / Constants.SecondsPerGameMinute;
 
             Power.Add(GenerationPerSecond * dtSeconds);
-            Water.Add(SpringCells * SpringInflowPerSecond * dtSeconds);
+            Water.Add((SpringCells * SpringInflowPerSecond
+                       + RainCatchers * RainCatcherInflowPerSecond) * dtSeconds);
 
             foreach (var s in _sprinklers) s.Step(dtSeconds, Plots, Water);
             if (Water.IsEmpty && _sprinklers.Count > 0) report.MarkWaterEmpty();
@@ -94,9 +99,11 @@ namespace SkyHarvest.Sim
                 foreach (var plot in Plots)
                 {
                     if (plot.Crop == null) continue;
+                    bool wasRipe = plot.Crop.IsHarvestable;
                     if (rain > 0f) plot.Soil.AddWater(rain);
                     float wind = env.WindDamage > 0f && IsWindProtected(plot.GridPos) ? 0f : env.WindDamage;
                     plot.Crop.Tick(dtMinutes, plot.Soil, env.SunExposure, wind);
+                    if (!wasRipe && plot.Crop.IsHarvestable) report.CropsRipened++;
                 }
             }
 

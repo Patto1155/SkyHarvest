@@ -46,7 +46,7 @@ namespace SkyHarvest.UI
         {
             var sb = new StringBuilder();
 
-            if (r.Harvested.Count == 0 && r.Replanted == 0 && r.BatchesCompleted == 0)
+            if (r.Harvested.Count == 0 && r.Replanted == 0 && r.BatchesCompleted == 0 && r.CropsRipened == 0)
                 sb.AppendLine("The island waited quietly.");
 
             foreach (var kv in r.Harvested)
@@ -54,6 +54,7 @@ namespace SkyHarvest.UI
                 string name = GameDatabase.GetItem(kv.Key)?.DisplayName ?? kv.Key;
                 sb.AppendLine($"+{kv.Value} {name}");
             }
+            if (r.CropsRipened > 0)     sb.AppendLine($"{r.CropsRipened} crops ripened, waiting to be picked");
             if (r.Replanted > 0)        sb.AppendLine($"{r.Replanted} plots replanted");
             if (r.BatchesCompleted > 0) sb.AppendLine($"{r.BatchesCompleted} workshop batches ready");
 

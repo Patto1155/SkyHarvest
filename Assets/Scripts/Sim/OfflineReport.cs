@@ -11,6 +11,9 @@ namespace SkyHarvest.Sim
         public readonly Dictionary<string, int> Harvested = new();
         public int   Replanted;
         public int   BatchesCompleted;
+        /// <summary>Crops that finished growing while away and are still standing ripe.
+        /// This is the day-one idle payoff, before any Tender's Post exists to pick them.</summary>
+        public int   CropsRipened;
 
         /// <summary>Sim-seconds into the run when each buffer first saturated; -1 = never.</summary>
         public float StorageFullAt = -1f;
@@ -26,7 +29,8 @@ namespace SkyHarvest.Sim
         }
 
         public bool HasAnythingToShow =>
-            TotalHarvested > 0 || Replanted > 0 || BatchesCompleted > 0 || ElapsedSeconds >= 60;
+            TotalHarvested > 0 || Replanted > 0 || BatchesCompleted > 0 || CropsRipened > 0
+            || ElapsedSeconds >= 60;
 
         public void RecordHarvest(string itemId, int amount)
         {

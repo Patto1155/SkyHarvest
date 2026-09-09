@@ -40,6 +40,15 @@ public class WelcomeBackTests
     }
 
     [Test]
+    public void Ripened_Crops_Are_Reported_Without_Any_Automation()
+    {
+        var r = new OfflineReport { ElapsedSeconds = 600, CropsRipened = 4 };
+        string body = WelcomeBackUI.BuildBody(r);
+        StringAssert.Contains("4 crops ripened", body);
+        StringAssert.DoesNotContain("waited quietly", body);
+    }
+
+    [Test]
     public void Build_Menu_Scroll_Keeps_Selection_Visible()
     {
         // 18 structures, 12 rows (Bootstrap): top of list pins to 0, tail pins to 6.
