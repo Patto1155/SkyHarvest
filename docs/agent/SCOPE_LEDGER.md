@@ -101,3 +101,40 @@ code-constructed scene/UI instead of prefabs; `GameDatabase` static C# instead o
 | R | RotateStructure (plan BuildMode map) | not implemented (structures are 1×1, nothing to rotate) | ✅ dropped by design |
 | Mouse (Map button) / **M** | Minimap toggle | `Bootstrap.Update` (M key) + Map button, both toggle `MinimapPanel` | ✅ G8 fixed session 7 |
 | **H** | (not planned — added) keybind help overlay | `Bootstrap.Update` + `KeybindPanel` | ✅ extra, session 7 |
+
+---
+
+# Session 8 (2026-09-09) — v2 idle pivot, Phases 1+2
+
+The game was re-scoped to an Android portrait idle sky-farm; the binding gameplay spec is now
+`docs/superpowers/specs/2026-09-09-sky-harvest-idle-pivot.md`, which supersedes the March spec on
+§6 (time system), §11 (no time-skips) and the "no offline growth" thesis. Everything else in the
+March spec still applies. This ledger's older rows are all pre-pivot — treat any that contradict
+the v2 spec as obsolete rather than as gaps to close.
+
+## Closed this session
+- **check.sh was dead in a fresh clone** — `tools/clr-harness/**/*.csproj` matched the `*.csproj`
+  gitignore rule and had never been committed. Now tracked via an exception. (This is what the
+  old "task 0 .NET 8 SDK gotcha" actually was; the SDK was a red herring.)
+- **`StepSkynet` / `StepTillSow` harness gaps** — both already fixed in the code by earlier
+  sessions; the ledger rows above were stale. `StarterIsland` does produce `CliffEdge` corner
+  cells, and `StepTillSow` selects the seed slot before sowing.
+- **G-new: nothing compiled `Assets/Editor`** — a broken verify harness only surfaced when a human
+  opened Unity. `clr-harness/EditorCode` + `EditorStubs` now compile it in `check.sh`.
+- **G-new: `SecondsPerGameMinute = 1`** ran the whole simulation 60× fast (a desktop-prototype
+  leftover). Now 60, so crop and weather timers are the real-time values the spec quotes.
+- **G-new: `CropState.Tick` sampled `soil.GrowthMultiplier()` after consuming water**, so any
+  coarse step that drained the soil credited zero growth. Only visible once offline replay used
+  large steps.
+
+## Open gaps introduced by the pivot (in NEXT_SESSION.md priority order)
+| Gap | Detail |
+|---|---|
+| V1 | **Nothing verified in Unity.** No editor in the agent environment; all v2 code is unit-tested and stub-compiled only. |
+| V2 | **No balance pass.** Offline cap, device costs, flow rates, power draw and crop timers are first-guess values. |
+| V3 | **No pre-forge offline income.** Sprinkler/tender's post/skynet all need nails → forge. Rain catchers trickle water offline, and ripening works with no automation, but the spec's Tier-0 sieve does not exist. Biggest retention question. |
+| V4 | Panels are still absolute-offset layouts inside a centred rect; only HUD chrome is edge-anchored. |
+| V5 | `TapController.NearestReachable` is O(cells²) on an unreachable tap (BFS per candidate). |
+| V6 | `AutomationSystem` rebuilds the whole sim (incl. `FindObjectsOfType<CropPlot>`) on every place/demolish/plant/harvest. |
+| V7 | Android target SDK still 0 (= highest installed). Android 16 is API 36; set explicitly once the Unity Android module is confirmed. |
+| V8 | Keybind overlay (H) still presents the desktop scheme as primary. |

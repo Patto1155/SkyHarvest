@@ -1,27 +1,47 @@
 # Next session — task list
 
 > **Session 8 (2026-09-09) pivoted the game to an Android idle sky-farm** — see START_HERE.md and
-> `docs/superpowers/specs/2026-09-09-sky-harvest-idle-pivot.md`. Phase 1 (offline sim, automation
-> devices, save v2, Welcome Back panel, portrait settings) is on `claude/laughing-mayer-3s61u8`.
-> **Phase 2 is the priority list now; the older items below are still valid but secondary.**
+> `docs/superpowers/specs/2026-09-09-sky-harvest-idle-pivot.md`. Phases 1 and 2 are done on
+> `claude/laughing-mayer-3s61u8` (PR #10): offline sim, 7 automation devices + sprites, save v2,
+> Welcome Back panel, tap-to-move, portrait HUD, real-time pacing, editor compile-checking.
+> **The list immediately below is the priority now; everything after it is older and secondary.**
 >
-> ## Phase 2 — make it a phone game
-> 1. **Human verify Phase 1 in the editor** (nothing below was run in Unity): New Game → place
->    `sprinkler` + `tenders_post` + `crate` (with seeds) around tilled plots → Save+Quit → wait a
->    few minutes → Continue → Welcome Back panel. Also confirm `AutomationStructure` prompt text and
->    that the magenta fallback sprites appear where expected.
-> 2. **Tap-to-move / tap-to-interact** — replace WASD+E as the primary input. Tap a tile: if the
->    avatar is adjacent, interact; otherwise walk there (straight-line, tier-gated by
->    `IslandData.CanTraverse`) then interact. Keep keyboard as a debug fallback.
-> 3. **Portrait HUD relayout** — hotbar/prompt anchored to bottom in a 9:16 canvas
->    (`CanvasScaler` ScaleWithScreenSize, reference 720×1280), panels centred and narrower.
->    `BuildMenuUI` needs paging/scroll (12 rows, 18 structures).
-> 4. **Sprites for the 7 devices** (`structures/{water_tank,sprinkler,wind_totem,tenders_post,
->    composter,windmill,battery}.png`) + rows in CONVENTIONS manifest. Windmill 4-frame strip.
-> 5. **Retune time**: `SecondsPerGameMinute` 1 → 60 so crop timers match the spec's real minutes and
->    offline yields stop being absurd; re-check `verify.sh` timings after.
-> 6. **Notification hook** when storage caps offline (Android local notification; later).
-> 7. **Rewarded-double / time-warp hooks** on the Welcome Back panel (stub the callbacks; no SDK yet).
+> ## Do this first — verify in Unity
+> Nothing in the pivot has been seen running; there is no Unity editor in the agent environment.
+> 1. `tools/verify.sh` → read `artifacts/verify/verify_report.md`. Four steps are new
+>    (tap-to-move, tender's post, sprinkler, offline catch-up) and have never executed.
+> 2. Play it in portrait (Game view 720×1280): does tapping a tile walk the avatar and act? Is the
+>    hotbar reachable with a thumb? Do the 7 device sprites read at actual size?
+> 3. The full idle loop by hand: New Game → till + water plots → build `crate` (seeds inside) +
+>    `tenders_post` next to them → Save+Quit → wait 5 min → Continue → Welcome Back should list
+>    harvests and replants. With no tender's post it should still say "N crops ripened".
+>
+> ## Phase 3 — the rest of the idle game (spec §2 ladder, §6)
+> 1. **Balance pass.** Nothing is tuned: `OfflineCapSeconds` (4h), device costs, sprinkler flow,
+>    `TendersPost.PowerPerSecond`, windmill generation. Play an hour, then tune. The Skynet and
+>    crop timers are the two dials that decide whether a 90-second check-in feels worth it.
+> 2. **Early-game idle income.** First offline income currently needs the forge (nails). Rain
+>    catchers now trickle water offline, but the sprinkler still needs nails. Consider the spec's
+>    Tier-0 **sieve** (tap dirt → pebbles/seeds) as the pre-forge loop, or a nail-free starter
+>    sprinkler. This is the single biggest open design question for retention.
+> 3. **Storage-full notification** (Android local notification when the offline buffer caps).
+> 4. **Time-warp / rewarded-double hooks** on the Welcome Back panel — pure logic first
+>    (`OfflineReport` × multiplier), SDK later. Never sell yield multipliers (spec §3).
+> 5. **Drift chunks** — small islands that drift past and can be anchored, each bringing a terrain
+>    roll (this is how a player without a spring eventually gets one). Spec §5.
+> 6. **Essence crops** (spec §2 tier 6): brewhouse → alchemist's bench → infused soil → iron root.
+>    The "iron grows on plants" payoff, deliberately gated behind the whole industrial chain.
+> 7. **Blackstorm prestige** (spec §2): island breaks along chunk seams, reroll terrain, keep
+>    legendary seeds and blueprints.
+>
+> ## Known rough edges left behind
+> - `TapController.NearestReachable` runs a BFS per candidate cell — O(cells²) on a tap that lands
+>   somewhere unreachable. Fine at 12–50 cells, needs a single flood-fill if islands get big.
+> - Panels are still laid out in absolute offsets inside a centred rect; only the HUD chrome is
+>   edge-anchored. A tall narrow panel style would use the portrait screen much better.
+> - `AutomationSystem` rebuilds the whole `IslandSim` on any place/demolish/plant/harvest. Cheap
+>   now, but it is a full `FindObjectsOfType<CropPlot>` scan each time.
+> - The keybind overlay (H) still documents the desktop scheme as primary.
 
 Execute in order. Branch off `main` — note `feat/bugfixes-and-session-prs` (commit `6c98a7e`)
 is sitting uncommitted-to-main and **not yet merged**; merge or rebase onto it first, don't
@@ -33,7 +53,14 @@ gotcha in START_HERE, **and** the .NET 8 SDK gotcha below), visual-verify via th
 explicitly rejected PR3 (tool hints), PR5 (debris toast), PR8 (crop water alert) — don't
 re-propose these without him asking.
 
-## 0. Fix `tools/check.sh` (.NET 8 SDK gotcha — blocks fast unit-test validation)
+## 0. ~~Fix `tools/check.sh`~~ ✅ DONE (session 8)
+
+The root cause was not the SDK: `tools/clr-harness/**/*.csproj` matched the `*.csproj` gitignore
+rule and had never been committed, so the projects `check.sh` builds did not exist in a fresh
+clone. They are now tracked via a gitignore exception, `check.sh` builds the Tests and EditorCode
+projects too, and on Linux `apt-get install -y dotnet-sdk-8.0` is the only setup needed.
+
+### Original (stale) note, kept for context
 
 - The sandboxed shell used in session 7 didn't have `dotnet` on PATH by default
   (`C:\Program Files\dotnet\dotnet.exe` exists but isn't found without an explicit PATH add).
@@ -44,7 +71,11 @@ re-propose these without him asking.
   Play-mode harness) for validation — slower (~6 min) but it did catch a real bug this
   session (see START_HERE session-7 "Bug caught by the verify harness").
 
-## 1. Fix `PlayModeVerify.cs` for the two-tier starter island (test-harness gaps, not gameplay bugs)
+## 1. ~~Fix `PlayModeVerify.cs` for the two-tier starter island~~ ✅ DONE (verified session 8)
+
+Both gaps are closed: `StarterIsland` does emit `CliffEdge` cells at the two front corners
+(so `StepSkynet` finds one), and `StepTillSow` moves the seed into a hotbar slot and selects it
+before sowing. `PlayModeVerify` is now compile-checked by `tools/check.sh`. Original notes:
 
 - `StepSkynet` filters for `c.Terrain == TerrainType.CliffEdge`, which doesn't exist anywhere
   on `StarterIsland` (only `FertileValley`/`RockyPlateau`) → always fails with "no free

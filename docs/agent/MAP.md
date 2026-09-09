@@ -32,6 +32,21 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
 - `SoilPatch.cs` — water/nutrients/quality; composting + rotation depletion live here.
 - `IslandExpansion.cs` — scaffolding-triggered edge growth.
 
+## Input — phone-first (v2)
+- `Player/TapController` — the primary input. Left-click/tap → `TapTargeting.ResolveCell` (tries the
+  player's tier first, then others, since elevation shifts the projection) → in reach? act now :
+  `GridPath.Find` a route and `PlayerController.WalkPath(path, onArrive)`. Suppressed while any
+  panel is open, during build mode, or when the tap hit UI.
+- `Island/GridPath` — BFS honouring `IslandData.CanTraverse` (tiers + carved stairs).
+- `Player/PlayerController.Move(h, v, maxStep)` — one movement path shared by keyboard and
+  auto-walk, so tier rules can't diverge. `WalkPath`/`CancelWalk`/`IsAutoWalking`/`FaceCell`.
+  Keyboard input cancels an auto-walk.
+- `Player/InteractionSystem.TryActOnCell(cell)` — tap equivalent of E: stairs → interactable on
+  that cell → till. The E key still uses the facing cell.
+- `CameraFollow` — Ctrl+scroll or two-finger pinch to zoom.
+- `UI/UILayout` — portrait 720×1280 reference + edge-anchor helpers; `Bootstrap.ConfigureScaler`
+  applies it to both canvases. HUD chrome anchors to screen edges; panels stay centred.
+
 ## Player (`Player/`)
 - `PlayerController` — WASD/arrow movement (legacy axes), facing, walk anims, `CurrentTier`
   (which elevation tier the player is standing on — see Island section), hotbar passthrough.
@@ -114,7 +129,15 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
 - `Building/AutomationStructure` — the placed structure for any `StructureDef.Automation != None`;
   holds the device. `BuildModeController.AttachStructureComponent` routes by that field first.
 - `UI/WelcomeBackUI` — "While you were away" panel shown from `Bootstrap.StartFromSave`.
+  `BuildBody(report)` is static and unit-tested.
 - `CropPlot.LastCropId` — what to replant. Empty tilled plots are now saved (`EmptyPlots`).
+- **Water comes from** springs (`TerrainProperties.HasWaterSource`) and rain catchers
+  (`IslandSim.RainCatchers`, a trickle while away — the only pre-forge offline income).
+- **`OfflineReport.CropsRipened`** is the day-one payoff with no automation built; without it the
+  panel wrongly read "the island waited quietly".
+- Balance constants live on the device classes (`Sprinkler.TargetSoilWater`,
+  `TendersPost.PowerPerSecond`, `Windmill.BaseGenerationPerSecond`, …) and `Constants`
+  (`OfflineCapSeconds` 4h, `OfflineStepSeconds` 10s). **None of it is tuned yet.**
 
 ## Save/Load (`SaveLoad/`)
 - `SaveManager` (`persistentDataPath/saves/save.json`, JsonUtility) + `WorldSaveData` DTOs.
@@ -126,7 +149,11 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
   `Bootstrap.StartFromSave` rebuild via `StarterIsland.Build` instead of `IslandGenerator`
   when that's what was actually played, and restore which elevation tier the player was on.
 
-## Editor harnesses (`Assets/Editor/`)
+## Editor harnesses (`Assets/Editor/`) — compile-checked by `tools/check.sh` since session 8
+> `tools/clr-harness/EditorCode` builds these against `EditorStubs/Stubs.Editor.cs` (a minimal
+> UnityEditor surface). If you use a UnityEditor API the stubs lack, add it there; if it's a
+> UnityEngine API, add it to a new `UnityStubs/Stubs.<Area>.cs` (never edit another agent's file).
+
 - `BuildScript.cs` — `BuildWindows` batchmode build → `Builds/Windows/SkyHarvest.exe`.
 - `PlayModeScreenshots.cs` — unattended Play-mode screenshots (see WORKFLOW.md).
 - `PlayModeVerify.cs` — drives every feature loop live, writes `artifacts/verify/verify_report.md`.

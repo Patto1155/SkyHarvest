@@ -1,5 +1,12 @@
 # Workflow — exact commands
 
+> **Two environments run this repo.** Patrick's Windows box (below) has Unity; the cloud agent
+> sessions do not — there `bash tools/check.sh` is the *only* verification available, and
+> anything needing the editor must be left for a human. On Linux, setup is:
+> `apt-get update && apt-get install -y dotnet-sdk-8.0` (plus
+> `pip3 install --break-system-packages pillow` if you touch `tools/spritegen`).
+> `check.sh` picks up whichever `dotnet` it finds.
+
 Repo root: `D:\APATPROJECTS\SkyHarvest`. Unity `2022.3.45f1` at `D:/Unity/Hub/Editor/2022.3.45f1/Editor/Unity.exe`.
 `dotnet` = `~/.dotnet/dotnet.exe` (.NET 8 SDK 8.0.x, installed). The machine ALSO has
 `C:\Program Files\dotnet` on PATH but that's only **SDK 3.1**, which fails the net8.0 stub
@@ -17,14 +24,20 @@ This machine's only account is `Administrator`, so **every GUI Unity launch show
 ## Fast logic loop (no Unity, ~10s)
 
 ```bash
-bash tools/check.sh          # NUnit tests against Unity stubs (123 currently)
+bash tools/check.sh          # NUnit tests against Unity stubs (185 currently)
 ```
 
+It builds four projects in order: `UnityStubs` → `GameCode` (all of `Assets/Scripts`) →
+`EditorCode` (all of `Assets/Editor`, against `EditorStubs`) → `Tests`, then runs NUnit.
+
 `check.sh` self-locates the .NET 8 SDK — no `export PATH` needed. If it reports
-`error CS...` for a NEW UI script, the stub may be missing a Unity member: add it to
-`tools/clr-harness/UnityStubs/Stubs.*.cs` (e.g. `PointerEventData.button`,
-`RectTransformUtility`). Keeping the stubs complete is what lets the fast loop catch
-compile errors in new UI code before a 6-min Unity run.
+`error CS...` for a NEW script, a stub is probably missing a member: add UnityEngine members in a
+new `tools/clr-harness/UnityStubs/Stubs.<Area>.cs` and UnityEditor members in
+`tools/clr-harness/EditorStubs/Stubs.Editor.cs` — **never edit another agent's stub file**.
+Keeping the stubs complete is what lets the fast loop catch compile errors before a 6-min Unity
+run. Watch the namespace: e.g. `CanvasScaler` and `Scene` live in `UnityEngine`, not the
+`UnityEngine.UI` / `UnityEngine.SceneManagement` you'd expect, and a partial in the wrong
+namespace produces a confusing "ambiguous reference".
 
 ## Full validation before handoff (~1 min, batchmode, no dialog)
 
@@ -62,12 +75,31 @@ bash tools/run.sh
 file (use `bash tools/run.sh --no-build` to skip). The game opens **windowed 1280×720**.
 Click **New Game** on the main menu to start.
 
-**Controls (quick ref):** WASD move · E interact · Tab inventory · B build menu ·
-1–9/0 hotbar · mouse drag items between hotbar and inventory when Tab is open ·
-Esc cancel / pause.
+**Controls (quick ref):** **tap/click a tile to walk there and act on it** (the phone-first
+primary input) · pinch or Ctrl+scroll to zoom · WASD move and E interact still work as the
+desktop fallback and cancel an auto-walk · Tab inventory · B build menu · 1–9/0 hotbar ·
+mouse drag items between hotbar and inventory when Tab is open · Esc cancel / pause.
+
+**Test in portrait**: the game targets a 9:16 phone screen (Game view 720×1280). The standalone
+Windows build still opens 1280×720, which is *not* the shipping aspect — the HUD anchors to
+screen edges so it works either way, but judge the layout in portrait.
 
 No Unity admin dialog for the standalone `.exe` — that only affects editor launches.
 
+
+## Live feature verification (`tools/verify.sh`) — the one that matters after the pivot
+
+```bash
+bash tools/verify.sh         # ~6 min, GUI editor + dialog dismisser
+# output: artifacts/verify/verify_report.md  (+ screenshots alongside)
+```
+
+`Assets/Editor/PlayModeVerify.cs` drives every feature loop in a live Play session, one step per
+frame, and writes a pass/fail table. Four steps are new in session 8 and have **never been run**:
+tap-to-move, tender's post replanting, sprinkler watering, and offline catch-up + Welcome Back.
+Since session 8 this file is compile-checked by `check.sh`, so a syntax error there no longer
+hides until you open Unity — but a *logic* error (a step that can't find a free cell, say) still
+only shows up in the report.
 
 ## Visual verification (Play-mode screenshots) — NEEDS the dialog dismisser
 
@@ -108,6 +140,8 @@ All in-game sprites are **procedurally drawn pixel art** (NOT AI-generated), wri
 `Assets/Resources/Sprites/**` and loaded at runtime by `SpriteLoader` at PPU 64, pivot
 bottom-centre. Per-module generators: `terrain/player/crops/structures/items/ui/fx/bg`.
 
+On Linux the only dependency is Pillow: `pip3 install --break-system-packages pillow`.
+
 Regenerate everything: `python -m tools.spritegen.generate_all`
 Regenerate one module (fast): `python -c "from tools.spritegen import structures; structures.generate()"`
 Render + view ONE sprite while iterating (don't regen the whole set):
@@ -131,6 +165,14 @@ upper-LEFT: top brightest, left face mid, right face shadowed. Ready-made face p
 `WARMSTONE_R` = the weathered warm furnace-stone ramp. The forge is the reference example
 (tapered frustum body + voussoir arch via `_in_open`/`_in_outer` + centred hooded chimney).
 `path` stays a flat ground overlay (correct — it lies on the tile, no volume).
+
+**v2 automation devices** (`water_tank`, `sprinkler`, `wind_totem`, `tenders_post`, `composter`,
+`windmill`, `battery`) share a `COPPER` accent so self-running machines read apart from
+hand-worked structures at a glance; `TANK_R` is the rusted-iron ramp. Multi-frame ones encode
+state, and `Building/AutomationStructure` picks the frame: windmill animates continuously,
+sprinkler and tender's post show frame 1 only while they have water/power. **Check new sprites at
+2–3× on a dark background before committing** — the first pass of the water tank read as a white
+fridge and the totem's streamers vanished entirely at 1×.
 
 ## Delegate screenshot review to Haiku (token-efficient)
 
