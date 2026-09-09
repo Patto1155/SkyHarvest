@@ -314,7 +314,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "water_tank", DisplayName = "Water Tank",
-                Automation = AutomationKind.WaterTank,
+                Automation = AutomationKind.WaterTank, SpriteFrameWidth = 64,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "wood",  Amount = 4 },
                     new BuildCost { ItemId = "scrap", Amount = 3 },
@@ -324,7 +324,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "sprinkler", DisplayName = "Sprinkler",
-                Automation = AutomationKind.Sprinkler,
+                Automation = AutomationKind.Sprinkler, SpriteFrameWidth = 64,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "scrap", Amount = 3 },
                     new BuildCost { ItemId = "nails", Amount = 2 },
@@ -334,7 +334,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "wind_totem", DisplayName = "Wind Totem",
-                Automation = AutomationKind.WindTotem,
+                Automation = AutomationKind.WindTotem, SpriteFrameWidth = 64,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "wood", Amount = 4 },
                     new BuildCost { ItemId = "rope", Amount = 1 }
@@ -343,7 +343,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "tenders_post", DisplayName = "Tender's Post",
-                Automation = AutomationKind.TendersPost,
+                Automation = AutomationKind.TendersPost, SpriteFrameWidth = 96,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "wood",  Amount = 6 },
                     new BuildCost { ItemId = "nails", Amount = 4 },
@@ -354,7 +354,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "composter", DisplayName = "Composter",
-                Automation = AutomationKind.Composter,
+                Automation = AutomationKind.Composter, SpriteFrameWidth = 64,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "wood",  Amount = 4 },
                     new BuildCost { ItemId = "stone", Amount = 2 }
@@ -363,7 +363,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "windmill", DisplayName = "Windmill",
-                Automation = AutomationKind.Windmill,
+                Automation = AutomationKind.Windmill, SpriteFrameWidth = 96,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "wood",  Amount = 6 },
                     new BuildCost { ItemId = "nails", Amount = 4 },
@@ -373,7 +373,7 @@ namespace SkyHarvest.Data
             new StructureDef
             {
                 StructureId = "battery", DisplayName = "Battery",
-                Automation = AutomationKind.Battery,
+                Automation = AutomationKind.Battery, SpriteFrameWidth = 64,
                 BuildCosts = new[] {
                     new BuildCost { ItemId = "scrap", Amount = 4 },
                     new BuildCost { ItemId = "nails", Amount = 4 }

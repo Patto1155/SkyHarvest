@@ -750,6 +750,281 @@ def barrel():
 # ===========================================================================
 # debris piles 48x48 each
 # ===========================================================================
+# ===========================================================================
+# v2 automation devices (idle pivot spec 2026-09-09 §4)
+# Shared language: salvaged timber + rusted iron + rope, one cool copper accent
+# (COPPER) that marks "this thing runs by itself" so devices read apart from
+# hand-worked structures at a glance.
+# ===========================================================================
+COPPER = lerp(core.RUST, core.CROP_GOLD, 0.45)
+COPPER_R = material_ramp(COPPER, 5, 0.5, 1.5)
+# Rusted tank iron: STONE pushed toward RUST so drums read weathered, not clean steel.
+TANK_R = material_ramp(lerp(core.STONE, core.RUST, 0.45), 5, 0.45, 1.3)
+WATER = lerp(core.STORM, core.FOG, 0.35)
+WATER_R = material_ramp(WATER, 4, 0.6, 1.5)
+
+
+def water_tank():
+    """Tall riveted iron cylinder on a timber cradle, with a copper level pipe."""
+    W, Hh = 64, 96
+    c = Canvas(W, Hh)
+    cx, base_y = 32, 88
+    _shadow(c, cx, base_y - 3, 20, 6)
+    # timber cradle
+    for lx in (cx - 15, cx + 15):
+        c.line(lx, base_y, lx, base_y - 12, DARKWOOD_R[1])
+        c.line(lx + 1, base_y, lx + 1, base_y - 12, DARKWOOD_R[2])
+    c.line(cx - 15, base_y - 10, cx + 15, base_y - 10, DARKWOOD_R[1])
+    # rusted iron drum — weather-beaten, not clean steel (CONVENTIONS palette)
+    m_top, m_left, m_right = iso_metal_faces(TANK_R)
+    core.iso_box(c, cx, base_y - 12, 16, 8, 44, m_top, m_left, m_right)
+    # rivet bands + streaked rust below each
+    for band_y in (base_y - 24, base_y - 38, base_y - 52):
+        c.hline(cx - 16, cx + 16, band_y, shade(core.RUST, 0.65))
+        c.hline(cx - 16, cx + 16, band_y + 1, shade(core.RUST, 0.5))
+        for x in range(cx - 16, cx + 17, 4):
+            c.set(x, band_y, RUST_R[3])
+        for x in range(cx - 14, cx + 15, 7):
+            for k in range(2, 7):
+                c.set(x, band_y + 1 + k, (*core.RUST, 90))
+    # copper sight-glass up the front edge, water visible inside
+    c.vline(cx, base_y - 16, base_y - 50, COPPER_R[3])
+    c.vline(cx + 1, base_y - 16, base_y - 50, COPPER_R[1])
+    for y in range(base_y - 16, base_y - 40, -1):
+        c.set(cx, y, WATER_R[2])
+    # spigot
+    c.line(cx - 4, base_y - 16, cx - 9, base_y - 16, COPPER_R[3])
+    c.set(cx - 10, base_y - 15, COPPER_R[4])
+    return [_finish(c, warm=True)]
+
+
+def sprinkler():
+    """Copper standpipe with a rotating spray head; frame 1 shows the spray arc."""
+    W, Hh = 64, 80
+    frames = []
+    cx = 32
+    for spraying in (0, 1):
+        c = Canvas(W, Hh)
+        base_y = 72
+        _shadow(c, cx, base_y - 2, 12, 5)
+        # stone footing
+        s_top, s_left, s_right = iso_stone_faces(STONE_R)
+        core.iso_box(c, cx, base_y, 9, 5, 5, s_top, s_left, s_right)
+        # standpipe
+        c.vline(cx - 1, base_y - 10, 34, COPPER_R[2])
+        c.vline(cx, base_y - 10, 34, COPPER_R[3])
+        c.vline(cx + 1, base_y - 10, 34, COPPER_R[1])
+        # collar + rotating head
+        c.hline(cx - 4, cx + 4, 36, RUST_R[3])
+        c.disc(cx, 31, 3, COPPER_R[3])
+        c.set(cx - 1, 30, COPPER_R[4])
+        # three arms
+        for dx, dy in ((-7, 3), (7, 3), (0, -4)):
+            c.line(cx, 31, cx + dx, 31 + dy, COPPER_R[2])
+        if spraying:
+            # fine droplet arcs to either side
+            for side in (-1, 1):
+                for i in range(7):
+                    t = i / 6
+                    x = int(cx + side * (6 + 16 * t))
+                    y = int(30 + 22 * t * t)
+                    c.set(x, y, WATER_R[3])
+                    if i % 2 == 0:
+                        c.set(x, y + 1, WATER_R[1])
+        frames.append(_finish(c, warm=True))
+    return frames
+
+
+def wind_totem():
+    """Carved timber post with hanging cloth streamers and a bone-white charm."""
+    W, Hh = 64, 80
+    c = Canvas(W, Hh)
+    cx, base_y = 32, 74
+    rng = core.rng_for("wind_totem")
+    _shadow(c, cx, base_y - 2, 13, 5)
+    # stacked stone base
+    s_top, s_left, s_right = iso_stone_faces(STONE_R)
+    core.iso_box(c, cx, base_y, 11, 6, 6, s_top, s_left, s_right)
+    # carved post
+    core.wood_grain(c, cx - 3, 18, cx + 3, base_y - 10, TIMBER_R, rng, vertical=True)
+    c.vline(cx - 4, 18, base_y - 10, DARKWOOD_R[1])
+    c.vline(cx + 4, 18, base_y - 10, DARKWOOD_R[1])
+    # cross arm
+    c.hline(cx - 16, cx + 16, 26, DARKWOOD_R[2])
+    c.hline(cx - 16, cx + 16, 27, DARKWOOD_R[1])
+    # cloth streamers blowing to one side — wide enough to read at tile size
+    cloth = material_ramp(lerp(core.CROP_GOLD, core.RUST, 0.25), 4, 0.65, 1.35)
+    for i, sx in enumerate((cx - 14, cx - 6, cx + 6, cx + 14)):
+        length = 20 + (i % 3) * 6
+        for k in range(length):
+            drift = int(k * 0.5)
+            wave = 1 if (k // 3) % 2 else 0
+            x0 = sx + drift + wave
+            c.set(x0 - 1, 28 + k, cloth[1])
+            c.set(x0,     28 + k, cloth[3])
+            c.set(x0 + 1, 28 + k, cloth[2])
+        # frayed tail
+        c.set(sx + int(length * 0.5) + 1, 28 + length, cloth[0])
+    # carved face + charm
+    _lit_window(c, cx, 34, 2, 3, glow=core.AMBER)
+    c.disc(cx, 20, 3, shade(core.FOG, 1.05))
+    c.set(cx - 1, 19, core.FOG)
+    return [_finish(c, warm=True)]
+
+
+def tenders_post():
+    """A little worker's station: tool rack, ledger board, lantern. Frame 1 lit
+    (working). This is the automation centrepiece, so it reads busiest."""
+    W, Hh = 96, 96
+    frames = []
+    cx = 48
+    for working in (0, 1):
+        c = Canvas(W, Hh)
+        rng = core.rng_for(f"tenders_post_{working}")
+        base_y = 88
+        _shadow(c, cx, base_y - 4, 26, 7)
+        # plank deck
+        d_top, d_left, d_right = iso_plank_faces(TIMBER_R)
+        core.iso_box(c, cx, base_y, 24, 12, 6, d_top, d_left, d_right)
+        # corner posts + roof beam
+        for px in (cx - 20, cx + 20):
+            c.vline(px, base_y - 18, 28, DARKWOOD_R[1])
+            c.vline(px + 1, base_y - 18, 28, DARKWOOD_R[2])
+        c.hline(cx - 22, cx + 22, 27, DARKWOOD_R[2])
+        c.hline(cx - 22, cx + 22, 28, DARKWOOD_R[1])
+        # slanted shingle roof
+        for k in range(9):
+            c.hline(cx - 24 + k, cx + 24 - k, 26 - k, THATCH_R[3 if k % 2 else 2])
+        # back board with tally marks (the "ledger")
+        c.rect(cx - 14, 36, cx + 6, 56, DARKWOOD_R[1])
+        for i in range(6):
+            mx = cx - 11 + i * 3
+            c.vline(mx, 40, 48, shade(core.FOG, 0.9))
+        # hanging tools on the right post
+        c.line(cx + 12, 34, cx + 12, 48, IRON_R[3])       # handle
+        c.line(cx + 9, 48, cx + 15, 48, IRON_R[4])        # head
+        c.line(cx + 17, 34, cx + 17, 50, DARKWOOD_R[2])
+        # seed sack on the deck
+        sack = material_ramp(lerp(core.TIMBER, core.FOG, 0.45), 4, 0.6, 1.25)
+        c.ellipse(cx - 15, base_y - 14, 6, 5, sack[2])
+        c.ellipse(cx - 15, base_y - 17, 4, 3, sack[3])
+        for _ in range(4):
+            c.set(rng.randint(cx - 18, cx - 12), rng.randint(base_y - 18, base_y - 12), core.CROP_GOLD)
+        # lantern: dim when idle, blazing when working
+        _lit_window(c, cx + 20, 36, 2, 3,
+                    glow=core.AMBER if working else shade(core.AMBER, 0.45))
+        if working:
+            for r, a in ((6, 60), (9, 30)):
+                for y in range(36 - r, 36 + r + 1):
+                    for x in range(cx + 20 - r, cx + 20 + r + 1):
+                        if (x - cx - 20) ** 2 + (y - 36) ** 2 <= r * r:
+                            c.set(x, y, (*core.AMBER, a))
+        _rope_lash(c, cx - 20, 30, 6)
+        frames.append(_finish(c, warm=True))
+    return frames
+
+
+def composter():
+    """Open-topped timber bin of dark compost with a pitchfork stuck in it."""
+    W, Hh = 64, 80
+    c = Canvas(W, Hh)
+    cx, base_y = 32, 74
+    rng = core.rng_for("composter")
+    _shadow(c, cx, base_y - 3, 22, 6)
+    # bin walls: frustum narrowing slightly toward the base, open top
+    t_top, t_left, t_right = iso_plank_faces(DARKWOOD_R)
+    core.iso_frustum(c, cx, base_y, 16, 8, 20, 10, 26,
+                     t_top, t_left, t_right, draw_top=False)
+    rim_y = base_y - 8 - 26
+    # compost heaped above the rim
+    soil = material_ramp(shade(core.TIMBER, 0.55), 5, 0.5, 1.35)
+    core.iso_top(c, cx, base_y - 26, 18, 9, 0,
+                 lambda x, y, v, s=soil: s[2 if (x * 3 + y) % 4 else 1])
+    c.ellipse(cx, rim_y + 8, 12, 5, soil[2])
+    # flecks of straw and green waste
+    for _ in range(22):
+        x = rng.randint(cx - 16, cx + 16)
+        y = rng.randint(rim_y + 4, rim_y + 13)
+        c.set(x, y, rng.choice([core.LEAF_D, core.LEAF_L, core.CROP_GOLD, soil[3]]))
+    # rim hoop + pitchfork
+    for x in range(cx - 20, cx + 21):
+        d = abs(x - cx) / 20
+        c.set(x, rim_y + int(10 * (1 - d * d)), RUST_R[3])
+    c.line(cx + 10, rim_y + 4, cx + 16, rim_y - 18, DARKWOOD_R[2])
+    for tx in (cx + 8, cx + 10, cx + 12):
+        c.line(tx, rim_y + 8, tx + 1, rim_y + 2, IRON_R[4])
+    return [_finish(c, warm=True)]
+
+
+def windmill():
+    """Timber tower with four sails; 4 frames rotate the sails a quarter turn."""
+    W, Hh = 96, 160
+    frames = []
+    cx = 48
+    hub_y = 44
+    for f in range(4):
+        c = Canvas(W, Hh)
+        base_y = 150
+        _shadow(c, cx, base_y - 4, 26, 7)
+        # tapered tower: stone footing, timber shaft
+        s_top, s_left, s_right = iso_stone_faces(STONE_R)
+        core.iso_box(c, cx, base_y, 20, 10, 10, s_top, s_left, s_right)
+        t_top, t_left, t_right = iso_plank_faces(TIMBER_R)
+        core.iso_frustum(c, cx, base_y - 10, 16, 8, 9, 5, 60,
+                         t_top, t_left, t_right, draw_top=True)
+        # cross bracing up the shaft
+        for k in range(4):
+            y0 = base_y - 18 - k * 14
+            c.line(cx - 13 + k * 2, y0, cx + 13 - k * 2, y0 - 12, DARKWOOD_R[1])
+            c.line(cx + 13 - k * 2, y0, cx - 13 + k * 2, y0 - 12, DARKWOOD_R[1])
+        # cap + hub
+        c.ellipse(cx, hub_y + 6, 11, 6, DARKWOOD_R[2])
+        c.disc(cx, hub_y, 4, IRON_R[3])
+        c.set(cx - 1, hub_y - 1, IRON_R[4])
+        # four sails, rotating by a quarter of 90° per frame
+        ang0 = f * (math.pi / 8)
+        sail_cloth = material_ramp(lerp(core.FOG, core.TIMBER, 0.3), 4, 0.6, 1.3)
+        for s in range(4):
+            a = ang0 + s * (math.pi / 2)
+            ex, ey = math.cos(a), math.sin(a) * 0.55     # squashed for the dimetric view
+            tipx, tipy = int(cx + ex * 34), int(hub_y + ey * 34)
+            c.line(cx, hub_y, tipx, tipy, DARKWOOD_R[2])
+            # cloth panel hanging off the trailing side of each arm
+            px, py = -ey, ex
+            for k in range(6, 34, 2):
+                bx = cx + ex * k
+                by = hub_y + ey * k
+                for w in range(1, 6):
+                    c.set(int(bx + px * w), int(by + py * w * 0.6), sail_cloth[2 if w % 2 else 3])
+        frames.append(_finish(c, warm=True))
+    return frames
+
+
+def battery():
+    """Salvaged cell bank: three copper-capped jars in an iron frame, glowing faintly."""
+    W, Hh = 64, 64
+    c = Canvas(W, Hh)
+    cx, base_y = 32, 58
+    _shadow(c, cx, base_y - 2, 20, 5)
+    # iron crate frame
+    m_top, m_left, m_right = iso_metal_faces(IRON_R)
+    core.iso_box(c, cx, base_y, 18, 9, 8, m_top, m_left, m_right)
+    # three glass jars standing in it
+    glass = material_ramp(lerp(core.STORM, core.MAGIC, 0.25), 4, 0.6, 1.5)
+    for jx in (cx - 11, cx, cx + 11):
+        c.rect(jx - 4, base_y - 34, jx + 4, base_y - 12, glass[1])
+        c.rect(jx - 3, base_y - 33, jx + 3, base_y - 13, glass[2])
+        # charge level glow inside
+        c.rect(jx - 3, base_y - 22, jx + 3, base_y - 13, (*core.AMBER, 150))
+        # copper cap + terminal
+        c.rect(jx - 5, base_y - 38, jx + 5, base_y - 34, COPPER_R[3])
+        c.set(jx, base_y - 39, COPPER_R[4])
+    # bus bar linking the caps
+    c.hline(cx - 11, cx + 11, base_y - 40, COPPER_R[2])
+    c.hline(cx - 11, cx + 11, base_y - 41, COPPER_R[4])
+    return [_finish(c, warm=True)]
+
+
 def debris(n):
     W, Hh = 48, 48
     c = Canvas(W, Hh)
@@ -810,6 +1085,14 @@ def generate():
     core.save_strip(forge(), "structures/forge.png", 128, 128)
     core.save_strip(crate(), "structures/crate.png", 48, 48)
     core.save_strip(barrel(), "structures/barrel.png", 48, 64)
+    # v2 automation devices
+    core.save_strip(water_tank(), "structures/water_tank.png", 64, 96)
+    core.save_strip(sprinkler(), "structures/sprinkler.png", 64, 80)
+    core.save_strip(wind_totem(), "structures/wind_totem.png", 64, 80)
+    core.save_strip(tenders_post(), "structures/tenders_post.png", 96, 96)
+    core.save_strip(composter(), "structures/composter.png", 64, 80)
+    core.save_strip(windmill(), "structures/windmill.png", 96, 160)
+    core.save_strip(battery(), "structures/battery.png", 64, 64)
     for i in (1, 2, 3):
         core.save_strip(debris(i), f"debris/debris_{i}.png", 48, 48)
 
