@@ -29,6 +29,7 @@ namespace SkyHarvest.Core
         private BuildMenuUI? _buildMenu;
         private PauseMenuUI? _pauseMenu;
         private MainMenuUI? _mainMenu;
+        private WelcomeBackUI? _welcomeBack;
         private GameObject? _hudCanvas;   // panels live here; needed to find INACTIVE ones
 
         private UI.GameCursor?       _gameCursor;
@@ -40,7 +41,9 @@ namespace SkyHarvest.Core
         private void Awake()
         {
             Application.targetFrameRate = 60;
+#if UNITY_STANDALONE || UNITY_EDITOR
             Screen.SetResolution(1280, 720, false);
+#endif
 
             EnsureEventSystem();
             BuildManagers();
@@ -69,6 +72,7 @@ namespace SkyHarvest.Core
             new GameObject("WeatherManager").AddComponent<WeatherManager>();
             new GameObject("CropGrowthSystem").AddComponent<CropGrowthSystem>();
             new GameObject("StructureRegistry").AddComponent<StructureRegistry>();
+            new GameObject("AutomationSystem").AddComponent<Sim.AutomationSystem>();
             new GameObject("AudioCueSystem").AddComponent<AudioCueSystem>();
         }
 
@@ -108,33 +112,46 @@ namespace SkyHarvest.Core
             _hudCanvas   = canvasGO;
             var canvas   = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvasGO.AddComponent<CanvasScaler>();
+            ConfigureScaler(canvasGO.AddComponent<CanvasScaler>());
             canvasGO.AddComponent<GraphicRaycaster>();
 
-            // ---- Hotbar: 10 item quick-slots (tools, seeds, etc.) ----
+            // ---- Hotbar: 10 item quick-slots, anchored to the bottom edge (thumb zone) ----
             const int HotbarSlotCount = 10;
+            const float HotbarSlotSize = 56f;
             var hotbarGO   = new GameObject("Hotbar", typeof(RectTransform));
             hotbarGO.transform.SetParent(canvasGO.transform, false);
+            UILayout.Stretch(hotbarGO.GetComponent<RectTransform>());
             var hotbarSlots = new GameObject[HotbarSlotCount];
-            float hbStart = -(HotbarSlotCount - 1) * 52f / 2f;
+            float hbSpacing = UILayout.HotbarSpacing(HotbarSlotCount, HotbarSlotSize, 4f,
+                UILayout.RefWidth - 2f * UILayout.Margin);
             for (int i = 0; i < HotbarSlotCount; i++)
             {
-                var slotGO = MakeSlot($"Slot{i}", hotbarGO.transform,
-                    new Vector2(hbStart + i * 52f, -310f));
+                var slotGO = MakeSlot($"Slot{i}", hotbarGO.transform, Vector2.zero, HotbarSlotSize);
+                var slotRT = slotGO.GetComponent<RectTransform>();
+                UILayout.AnchorBottomCenter(slotRT, HotbarSlotSize / 2f + UILayout.Margin);
+                slotRT.anchoredPosition += new Vector2(
+                    UILayout.SlotOffsetX(i, HotbarSlotCount, hbSpacing), 0f);
                 // Static key-number badge, top-left (1-9 then 0).
-                var keyLbl = MakeText($"Key{i}", slotGO.transform, new Vector2(-16f, 18f),
+                var keyLbl = MakeText($"Key{i}", slotGO.transform, new Vector2(-18f, 20f),
                     i < 9 ? (i + 1).ToString() : "0", 10);
                 keyLbl.color = new Color(1f, 1f, 1f, 0.6f);
                 hotbarSlots[i] = slotGO;
             }
 
-            // ---- Time + weather texts ----
-            var timeText       = MakeText("TimeText",       canvasGO.transform, new Vector2(-500f, 320f), "00:00", 16);
-            var weatherText    = MakeText("WeatherText",    canvasGO.transform, new Vector2(400f,  320f), "",     14);
-            var promptText     = MakeText("PromptText",     canvasGO.transform, new Vector2(0f,   -230f), "",     15);
+            // ---- Time + weather texts (screen corners) ----
+            var timeText       = MakeText("TimeText",       canvasGO.transform, Vector2.zero, "00:00", 16);
+            var weatherText    = MakeText("WeatherText",    canvasGO.transform, Vector2.zero, "",     14);
+            var promptText     = MakeText("PromptText",     canvasGO.transform, Vector2.zero, "",     15);
             // Minecraft-style slot name — appears briefly above the hotbar on selection change.
-            var hotbarNameText = MakeText("HotbarNameText", canvasGO.transform, new Vector2(0f,   -265f), "",     14);
+            var hotbarNameText = MakeText("HotbarNameText", canvasGO.transform, Vector2.zero, "",     14);
             hotbarNameText.color = new Color(1f, 1f, 1f, 0f);   // start invisible
+
+            timeText.alignment    = TextAnchor.MiddleLeft;
+            weatherText.alignment = TextAnchor.MiddleRight;
+            UILayout.AnchorTopLeft (timeText.GetComponent<RectTransform>(),    UILayout.Margin, 28f);
+            UILayout.AnchorTopRight(weatherText.GetComponent<RectTransform>(), UILayout.Margin, 28f);
+            UILayout.AnchorBottomCenter(promptText.GetComponent<RectTransform>(),     HotbarSlotSize + UILayout.Margin + 44f);
+            UILayout.AnchorBottomCenter(hotbarNameText.GetComponent<RectTransform>(), HotbarSlotSize + UILayout.Margin + 20f);
 
             _hud = canvasGO.AddComponent<HUDController>();
             _hud.SetTimeText(timeText);
@@ -144,14 +161,16 @@ namespace SkyHarvest.Core
             _hud.SetHotbarSlots(hotbarSlots);
 
             // ---- Contextual tooltip banner (top centre) ----
-            var tipBanner = MakePanel("TooltipBanner", canvasGO.transform, new Vector2(0f, 260f), new Vector2(520f, 56f));
+            var tipBanner = MakePanel("TooltipBanner", canvasGO.transform, Vector2.zero,
+                new Vector2(UILayout.RefWidth - 2f * UILayout.Margin, 56f));
+            UILayout.AnchorTopCenter(tipBanner.GetComponent<RectTransform>(), 72f);
             tipBanner.SetActive(false);
             var tipText = MakeText("TooltipText", tipBanner.transform, Vector2.zero, "", 13);
             _tooltips = canvasGO.AddComponent<ContextualTooltipUI>();
             _tooltips.Initialize(tipBanner, tipText);
 
             // ---- Inspector panel (on-demand, Q key) ----
-            var inspPanel = MakePanel("InspectorPanel", canvasGO.transform, new Vector2(380f, 120f), new Vector2(280f, 220f));
+            var inspPanel = MakePanel("InspectorPanel", canvasGO.transform, new Vector2(0f, 180f), new Vector2(300f, 220f));
             inspPanel.SetActive(false);
             var inspTitle   = MakeText("InspTitle",   inspPanel.transform, new Vector2(0f,  85f), "", 16);
             var inspBody    = MakeText("InspBody",    inspPanel.transform, new Vector2(0f,  20f), "", 12);
@@ -163,10 +182,14 @@ namespace SkyHarvest.Core
             _inspector = canvasGO.AddComponent<InspectorPanel>();
             _inspector.SetWidgets(inspTitle, inspBody, inspBarA, inspBarB, inspBarALbl, inspBarBLbl);
 
-            // ---- Minimap toggle (bottom-right) ----
-            var minimapPanel = MakePanel("MinimapPanel", canvasGO.transform, new Vector2(480f, -200f), new Vector2(160f, 120f));
+            // ---- Minimap + its toggle (top-right, under the weather readout) ----
+            var minimapPanel = MakePanel("MinimapPanel", canvasGO.transform, Vector2.zero, new Vector2(160f, 120f));
+            UILayout.AnchorTopRight(minimapPanel.GetComponent<RectTransform>(), UILayout.Margin, 100f);
             minimapPanel.SetActive(false);
-            var minimapBtn = MakeButton("Map", canvasGO.transform, new Vector2(520f, -310f));
+            var minimapBtn = MakeButton("Map", canvasGO.transform, Vector2.zero);
+            var minimapBtnRT = minimapBtn.GetComponent<RectTransform>();
+            minimapBtnRT.sizeDelta = new Vector2(72f, 48f);   // 48px min tap target (spec §7)
+            UILayout.AnchorTopRight(minimapBtnRT, UILayout.Margin, 52f);
             minimapBtn.onClick.AddListener(() => minimapPanel.SetActive(!minimapPanel.activeSelf));
             _minimapCtrl = canvasGO.AddComponent<UI.MinimapController>();
 
@@ -213,24 +236,26 @@ namespace SkyHarvest.Core
             var wsProgress = MakeText("WsProgress", wsPanel.transform, new Vector2(0f,   60f), "Idle", 14);
             var wsRecipes  = MakeText("WsRecipes",  wsPanel.transform, new Vector2(-100f, 10f), "", 13);
             var wsSlider   = MakeSlider("WsBar", wsPanel.transform, new Vector2(0f, 70f));
-            var wsStart    = MakeButton("Start",   wsPanel.transform, new Vector2(-70f, -110f));
-            var wsCollect  = MakeButton("Collect", wsPanel.transform, new Vector2(70f,  -110f));
+            var wsStart    = MakeButton("Start",   wsPanel.transform, new Vector2(-80f, -110f));
+            var wsCollect  = MakeButton("Collect", wsPanel.transform, new Vector2(80f,  -110f));
+            foreach (var b in new[] { wsStart, wsCollect })
+                b.GetComponent<RectTransform>().sizeDelta = new Vector2(140f, 56f);
             _workshopUI.SetWidgets(wsTitle, wsProgress, wsSlider, wsStart, wsCollect, wsRecipes);
 
             // ---- Storage panel ----
-            var stPanel = MakePanel("StoragePanel", canvasGO.transform, new Vector2(0f, 0f), new Vector2(620f, 350f));
+            var stPanel = MakePanel("StoragePanel", canvasGO.transform, new Vector2(0f, 0f), new Vector2(640f, 350f));
             stPanel.SetActive(false);
             _storageUI = canvasGO.AddComponent<StorageUI>();
             var playerLabels = new Text[10]; var storageLabels = new Text[10];
             for (int i = 0; i < 10; i++)
             {
-                playerLabels[i]  = MakeText($"PL{i}", stPanel.transform, new Vector2(-180f, 120f - i * 25f), "", 12);
-                storageLabels[i] = MakeText($"SL{i}", stPanel.transform, new Vector2( 130f, 120f - i * 25f), "", 12);
+                playerLabels[i]  = MakeText($"PL{i}", stPanel.transform, new Vector2(-150f, 120f - i * 25f), "", 12);
+                storageLabels[i] = MakeText($"SL{i}", stPanel.transform, new Vector2( 150f, 120f - i * 25f), "", 12);
             }
             _storageUI.SetDisplays(playerLabels, storageLabels);
 
             // ---- Build menu panel ----
-            var bmPanel = MakePanel("BuildMenuPanel", canvasGO.transform, new Vector2(-450f, 0f), new Vector2(280f, 400f));
+            var bmPanel = MakePanel("BuildMenuPanel", canvasGO.transform, new Vector2(0f, 40f), new Vector2(320f, 400f));
             bmPanel.SetActive(false);
             _buildMenu = canvasGO.AddComponent<BuildMenuUI>();
             var bmEntries = new Text[12];
@@ -244,9 +269,27 @@ namespace SkyHarvest.Core
             pausePanel.SetActive(false);
             _pauseMenu = canvasGO.AddComponent<PauseMenuUI>();
             _pauseMenu.Initialize(pausePanel);
-            MakeButton("Resume",    pausePanel.transform, new Vector2(0f,  80f)).onClick.AddListener(_pauseMenu.OnResumeClicked);
-            MakeButton("Save",      pausePanel.transform, new Vector2(0f,  20f)).onClick.AddListener(_pauseMenu.OnSaveClicked);
-            MakeButton("Save+Quit", pausePanel.transform, new Vector2(0f, -40f)).onClick.AddListener(_pauseMenu.OnSaveAndQuitClicked);
+            var resumeBtn = MakeButton("Resume",    pausePanel.transform, new Vector2(0f,  70f));
+            var saveBtn   = MakeButton("Save",      pausePanel.transform, new Vector2(0f,   0f));
+            var quitBtn   = MakeButton("Save+Quit", pausePanel.transform, new Vector2(0f, -70f));
+            foreach (var b in new[] { resumeBtn, saveBtn, quitBtn })
+                b.GetComponent<RectTransform>().sizeDelta = new Vector2(220f, 56f);
+            resumeBtn.onClick.AddListener(_pauseMenu.OnResumeClicked);
+            saveBtn.onClick.AddListener(_pauseMenu.OnSaveClicked);
+            quitBtn.onClick.AddListener(_pauseMenu.OnSaveAndQuitClicked);
+
+            // ---- Welcome Back panel (offline catch-up report) ----
+            var wbPanel = MakePanel("WelcomeBackPanel", canvasGO.transform, Vector2.zero, new Vector2(360f, 320f));
+            wbPanel.SetActive(false);
+            var wbTitle = MakeText("WbTitle", wbPanel.transform, new Vector2(0f, 125f), "While you were away", 18);
+            wbTitle.fontStyle = FontStyle.Bold;
+            var wbBody = MakeText("WbBody", wbPanel.transform, new Vector2(0f, 10f), "", 14);
+            wbBody.alignment = TextAnchor.UpperLeft;
+            wbBody.GetComponent<RectTransform>().sizeDelta = new Vector2(320f, 200f);
+            var wbCollect = MakeButton("Collect", wbPanel.transform, new Vector2(0f, -130f));
+            wbCollect.GetComponent<RectTransform>().sizeDelta = new Vector2(220f, 56f);
+            _welcomeBack = canvasGO.AddComponent<WelcomeBackUI>();
+            _welcomeBack.Initialize(wbPanel, wbTitle, wbBody, wbCollect);
 
             // ---- Keybind help overlay (H to toggle) ----
             _keybindPanel = MakePanel("KeybindPanel", canvasGO.transform, Vector2.zero, new Vector2(420f, 340f));
@@ -259,6 +302,8 @@ namespace SkyHarvest.Core
             kbText.text =
                 "  CONTROLS\n" +
                 "  ─────────────────────────────\n" +
+                "  Tap / Click     Walk to tile and act on it\n" +
+                "  Pinch / Ctrl+⇅  Zoom\n" +
                 "  WASD / Arrows   Move\n" +
                 "  E               Interact / Till / Carve stairs\n" +
                 "  Q               Inspect target\n" +
@@ -283,10 +328,11 @@ namespace SkyHarvest.Core
             var canvas   = canvasGO.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 100;
-            canvasGO.AddComponent<CanvasScaler>();
+            ConfigureScaler(canvasGO.AddComponent<CanvasScaler>());
             canvasGO.AddComponent<GraphicRaycaster>();
 
             var bg = MakePanel("MenuBg", canvasGO.transform, Vector2.zero, new Vector2(1280f, 720f));
+            UILayout.Stretch(bg.GetComponent<RectTransform>());
             var bgImg = bg.GetComponent<Image>();
             if (bgImg != null) bgImg.color = new Color(0.07f, 0.06f, 0.07f, 0.95f);
 
@@ -300,9 +346,13 @@ namespace SkyHarvest.Core
             logoRT.anchoredPosition = new Vector2(0f, 200f);
 
             var seedInput = MakeInputField("SeedInput", bg.transform, new Vector2(0f, 50f));
-            var newBtn    = MakeButton("New Game", bg.transform, new Vector2(0f, -20f));
-            var contBtn   = MakeButton("Continue", bg.transform, new Vector2(0f, -80f));
+            var newBtn    = MakeButton("New Game", bg.transform, new Vector2(0f, -30f));
+            var contBtn   = MakeButton("Continue", bg.transform, new Vector2(0f, -100f));
             MakeText("SeedLabel", bg.transform, new Vector2(0f, 90f), "Seed (optional):", 13);
+            // 48px minimum tap targets on phones (spec §7 touch-first).
+            foreach (var b in new[] { newBtn, contBtn })
+                b.GetComponent<RectTransform>().sizeDelta = new Vector2(240f, 56f);
+            seedInput.GetComponent<RectTransform>().sizeDelta = new Vector2(240f, 56f);
 
             _mainMenu = canvasGO.AddComponent<MainMenuUI>();
             _mainMenu.Initialize(bg, seedInput, contBtn,
@@ -429,7 +479,18 @@ namespace SkyHarvest.Core
                 plotGO.transform.position = GridMath.GridToWorld(pos);
                 var plot = plotGO.AddComponent<Farming.CropPlot>();
                 plot.Initialize(cell.Soil, cropState, pos);
+                plot.LastCropId = cropDef.CropId;
                 CropGrowthSystem.Instance?.Register(plot);
+            }
+
+            // Empty tilled plots (v2) — Tender's Posts replant into these.
+            foreach (var ps in data.Island.EmptyPlots)
+            {
+                var pos  = new Vector2Int(ps.GridX, ps.GridY);
+                var cell = island.GetCell(pos);
+                if (cell == null || cell.IsTilled) continue;
+                var plot = FarmingActions.TryTill(cell, island, _islandRenderer);
+                if (plot != null && !string.IsNullOrEmpty(ps.LastCropId)) plot.LastCropId = ps.LastCropId;
             }
 
             var debrisSpawner = Object.FindObjectOfType<DebrisSpawner>();
@@ -439,6 +500,11 @@ namespace SkyHarvest.Core
             WireGameCursor(island);
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = true });
             _gameStarted = true;
+
+            // v2 offline catch-up: replay the time away, then show the Welcome Back report.
+            SaveManager.Instance?.ApplyAutomationState(data);
+            var report = Sim.AutomationSystem.Instance?.RunOfflineCatchup(data.LastSeenUnixTime);
+            if (report != null && report.HasAnythingToShow) _welcomeBack?.Show(report);
         }
 
         private void RestoreIslandContents(WorldSaveData data)
@@ -497,6 +563,7 @@ namespace SkyHarvest.Core
             go.AddComponent<ToolSystem>();
             go.AddComponent<Hotbar>();          // unified tool+item hotbar (after inv + tools)
             go.AddComponent<InteractionSystem>();
+            go.AddComponent<TapController>();   // tap/click to walk + act (phone-first input)
 
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sortingOrder = 0;
@@ -658,7 +725,8 @@ namespace SkyHarvest.Core
             // Esc: close the topmost open thing; pause only when nothing is open
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if      (_keybindPanel != null && _keybindPanel.activeSelf) _keybindPanel.SetActive(false);
+                if      (_welcomeBack != null && _welcomeBack.IsOpen)      _welcomeBack.Close();
+                else if (_keybindPanel != null && _keybindPanel.activeSelf) _keybindPanel.SetActive(false);
                 else if (_buildMenu != null && _buildMenu.IsOpen)     { _buildMenu.Close(); bmc?.ExitBuildMode(); }
                 else if (bmc != null && bmc.IsActive)                 bmc.ExitBuildMode();
                 else if (_storageUI != null && _storageUI.IsOpen)     _storageUI.Close();
@@ -671,6 +739,18 @@ namespace SkyHarvest.Core
         // ─────────────────────────────────────────────────────────────────────
         // UI helpers
         // ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Portrait 720×1280 reference. Expand keeps the whole canvas visible on any aspect, so
+        /// the same layout works in a landscape editor window; HUD elements anchor to screen
+        /// edges via UILayout rather than absolute centre offsets.
+        /// </summary>
+        private static void ConfigureScaler(CanvasScaler scaler)
+        {
+            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(UILayout.RefWidth, UILayout.RefHeight);
+            scaler.screenMatchMode     = CanvasScaler.ScreenMatchMode.Expand;
+        }
 
         private static void EnsureEventSystem()
         {

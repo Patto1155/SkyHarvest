@@ -7,7 +7,10 @@ namespace SkyHarvest.Core
         public const int DefaultIslandRadius = 12;
 
         // Time
-        public const float SecondsPerGameMinute = 1f;
+        // 1 real minute = 1 game minute, so CropDef.GrowthTimeMinutes and weather durations are
+        // the real-time values the spec quotes (starter crops 2-5 min). Was 1f (60× faster) during
+        // the desktop prototype; verify-harness steps publish GameTickEvent directly so they don't care.
+        public const float SecondsPerGameMinute = 60f;
         public const float MinutesPerGameHour = 60f;
         public const float HoursPerGameDay = 24f;
 
@@ -20,6 +23,12 @@ namespace SkyHarvest.Core
         // Weather
         public const float MinWeatherDurationMinutes = 5f;
         public const float MaxWeatherDurationMinutes = 10f;
+
+        // Offline simulation (spec 2026-09-09 §3)
+        public const long  OfflineCapSeconds = 4 * 60 * 60;
+        // 10s keeps per-step crop water draw (WaterConsumptionPerMinute × 10) under a
+        // sprinkler's refill, so coarse replay matches live pacing. 4h cap = 1440 steps.
+        public const float OfflineStepSeconds = 10f;
 
         // Debris
         public const float BaseDebrisIntervalSeconds = 45f;

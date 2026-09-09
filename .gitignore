@@ -10,6 +10,7 @@
 /[Uu]ser[Ss]ettings/
 /[Mm]emoryCaptures/
 *.csproj
+!tools/clr-harness/**/*.csproj
 *.sln
 *.user
 *.pidb

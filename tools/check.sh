@@ -8,11 +8,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SCRIPT_DIR/.."
 
-# Self-locate the .NET 8 SDK. The machine has BOTH 3.1.201 (C:\Program Files\dotnet,
-# on PATH) and 8.0.x (~/.dotnet, NOT on PATH by default). The stub projects target
-# net8.0, so 3.1 fails with MSB3644 — a past session wrongly concluded ".NET 8 isn't
-# installed". Prefer ~/.dotnet so this works regardless of PATH.
+# Self-locate the .NET 8 SDK. On the Windows dev box there are BOTH 3.1.201
+# (C:\Program Files\dotnet, on PATH) and 8.0.x (~/.dotnet, NOT on PATH by default).
+# The stub projects target net8.0, so 3.1 fails with MSB3644 — a past session wrongly
+# concluded ".NET 8 isn't installed". Prefer ~/.dotnet, then PATH (Linux: apt dotnet-sdk-8.0).
 DOTNET="$HOME/.dotnet/dotnet.exe"
+if [[ ! -x "$DOTNET" ]]; then DOTNET="$HOME/.dotnet/dotnet"; fi
 if [[ ! -x "$DOTNET" ]]; then
   DOTNET="$(command -v dotnet || true)"
 fi
@@ -24,6 +25,7 @@ dotnet() { "$DOTNET" "$@"; }
 
 STUBS="$SCRIPT_DIR/clr-harness/UnityStubs/UnityStubs.csproj"
 GAME="$SCRIPT_DIR/clr-harness/GameCode/GameCode.csproj"
+EDITOR="$SCRIPT_DIR/clr-harness/EditorCode/EditorCode.csproj"
 TESTS="$SCRIPT_DIR/clr-harness/Tests/Tests.csproj"
 
 RESTORE_FLAG=""
@@ -37,8 +39,14 @@ dotnet build "$STUBS" $RESTORE_FLAG -c Debug -v quiet
 echo "=== Building GameCode ==="
 dotnet build "$GAME" $RESTORE_FLAG -c Debug -v quiet
 
+echo "=== Building Editor scripts (verify harness / screenshots / build script) ==="
+dotnet build "$EDITOR" $RESTORE_FLAG -c Debug -v quiet
+
+echo "=== Building Tests ==="
+dotnet build "$TESTS" $RESTORE_FLAG -c Debug -v quiet
+
 echo "=== Running tests ==="
-dotnet test "$TESTS" $RESTORE_FLAG -c Debug --no-build --no-restore --logger "console;verbosity=normal"
+dotnet test "$TESTS" -c Debug --no-build --no-restore --logger "console;verbosity=normal"
 
 echo ""
 echo "=== check.sh PASSED ==="

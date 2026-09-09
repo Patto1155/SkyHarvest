@@ -11,7 +11,62 @@ Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliatio
 
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
-## Current state (2026-06-16, session 7 — playtest bugfixes + 7 polish PRs)
+## Current state (2026-09-09, session 8 — v2 idle pivot, Phases 1 + 2)
+
+Patrick re-scoped the game: **Android portrait idle sky-farm** (Idle Obelisk Miner / AdCap /
+SkyFactory influences). Design agreed in chat and written to
+`docs/superpowers/specs/2026-09-09-sky-harvest-idle-pivot.md` — **read that before the March spec**,
+which it supersedes on the time system, offline progression and monetisation. Real crop system
+stays; "iron grows on plants" is a late unlock; **never punish absence** is the load-bearing rule.
+
+All of the below is on branch `claude/laughing-mayer-3s61u8`, PR
+[#10](https://github.com/Patto1155/SkyHarvest/pull/10), 185 tests green via `bash tools/check.sh`.
+
+### Phase 1 — the offline engine
+- **`Assets/Scripts/Sim/`** — pure-C# `IslandSim` operating on the *live* `SoilState`/`CropState`/
+  `Inventory`/`WorkshopProcess` objects (no parallel model to sync). `AutomationSystem`
+  MonoBehaviour ticks devices during play and replays time away on Continue. See MAP.md "Sim".
+- 7 automation structures (`water_tank`, `sprinkler`, `wind_totem`, `tenders_post`, `composter`,
+  `windmill`, `battery`) via `StructureDef.Automation` → `AutomationStructure` + a pure
+  `AutomationDevice`. Sprites generated (`tools/spritegen/structures.py`); windmill sails animate,
+  sprinkler and tender's post switch to a "running" frame when they have water/power.
+- Save v2: `LastSeenUnixTime`, water/power buffers, composter stock, empty tilled plots.
+- `WelcomeBackUI` ("While you were away") built in `Bootstrap.BuildUI`, shown after Continue.
+- `CropState.Tick` samples the soil multiplier *before* drawing water — coarse offline steps were
+  reading 0 after the draw and crediting no growth at all.
+
+### Phase 2 — make it a phone game
+- **Tap-to-move**: `TapController` + `GridPath` (BFS honouring the tier/stair gate) +
+  `TapTargeting`. Tap a tile → act if in reach, else walk there and act on arrival. Keyboard still
+  works and cancels an auto-walk. `PlayerController.Move/WalkPath/CancelWalk/FaceCell` and
+  `InteractionSystem.TryActOnCell` are the seams. Pinch-to-zoom in `CameraFollow`.
+- **Portrait HUD**: `UILayout` (720×1280 reference, edge anchoring helpers). Hotbar sits in the
+  bottom thumb zone, time/weather in the top corners, 56px tap targets, `BuildMenuUI` scrolls.
+- **`SecondsPerGameMinute` 1 → 60**, so crop/weather timers are the real-time values the spec
+  quotes. This was a 60× speedup left over from the desktop prototype.
+- Offline report counts `CropsRipened` — the day-one payoff (water plots, close app, come back to
+  ripe crops) happens with *no* automation built, and the panel used to say "waited quietly".
+- Rain catchers trickle into the water network offline: the first water income reachable without
+  the forge.
+- **`tools/check.sh` now compiles `Assets/Editor` too** (new `clr-harness/EditorCode` project +
+  `EditorStubs`). Nothing compiled those before, so a broken verify harness only surfaced when a
+  human opened Unity. `PlayModeVerify` gained steps for tap-to-move, tender's post, sprinkler and
+  offline catch-up.
+
+### What is NOT verified
+**No Unity editor exists in this environment.** Everything above compiles against the stub
+assemblies and passes unit tests; none of it has been seen running. `tools/verify.sh` (Play-mode)
+and `tools/shot.sh` (screenshots) have not been run since the pivot. The first human session
+should run `tools/verify.sh` and read `artifacts/verify/verify_report.md` — the four new steps
+there cover most of the pivot. Then eyeball the portrait HUD, which is pure math right now.
+
+### Environment notes for the next agent
+- Linux: `apt-get update && apt-get install -y dotnet-sdk-8.0` is all `check.sh` needs.
+  `pip3 install --break-system-packages pillow` for `tools/spritegen`.
+- `tools/clr-harness/**/*.csproj` are committed (there is a `.gitignore` exception for them);
+  they were silently swallowed by the `*.csproj` rule before, which is why `check.sh` was dead.
+
+## Previous state (2026-06-16, session 7 — playtest bugfixes + 7 polish PRs)
 
 - **Branch `feat/bugfixes-and-session-prs` (commit `6c98a7e`, NOT yet merged/pushed)** — two
   batches of work landed in one session, on top of the session-6 starter-island work below:

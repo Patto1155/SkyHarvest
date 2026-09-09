@@ -84,16 +84,18 @@ namespace SkyHarvest.Farming
         {
             if (IsDead || IsHarvestable) return;
 
-            // Consume water
+            // Consume water. Soil multiplier is sampled BEFORE the draw so a coarse
+            // offline step that drains the soil still credits growth for that interval.
             float waterNeeded    = _waterPerMinute * deltaMinutes;
             float waterAvailable = soil.WaterLevel;
             float waterFactor    = waterAvailable >= waterNeeded
                 ? 1f
                 : waterAvailable / (waterNeeded + 0.001f);
+            float soilMultiplier = soil.GrowthMultiplier();
             soil.ConsumeWater(System.Math.Min(waterNeeded, waterAvailable));
 
             // Growth
-            float growthRate    = waterFactor * sunExposure * soil.GrowthMultiplier();
+            float growthRate    = waterFactor * sunExposure * soilMultiplier;
             _accumulatedGrowth += deltaMinutes * growthRate;
             GrowthProgress      = _accumulatedGrowth / _growthTimeMinutes;
 

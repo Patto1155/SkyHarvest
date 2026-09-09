@@ -92,6 +92,10 @@ public static class PlayModeVerify
         Add(500, "Debris: spawn, land, scavenge", StepDebrisSpawn);
         Add(700, "Debris: scavenge after landing", StepDebrisScavenge);
         Add(720, "Weather: force HeavyStorm, effects active", StepWeather);
+        Add(740, "Tap-to-move: path found, avatar walks, acts on arrival", StepTapMove);
+        Add(760, "Automation: tender's post + crate replants a tilled plot", StepAutomation);
+        Add(780, "Automation: sprinkler waters from the island water network", StepSprinkler);
+        Add(790, "Offline: catch-up advances the island + Welcome Back panel", StepOfflineCatchup);
         Add(800, "Save: file written, in-progress site persisted", StepSave);
         Add(820, "Esc path: pause menu toggles (pauses game)", StepPause);
         Add(840, "Inspector: panel component present (Q path)", StepInspector);
@@ -318,7 +322,7 @@ public static class PlayModeVerify
         RecipeDef recipe = null;
         foreach (var r in GameDatabase.GetRecipesFor(WorkshopType.StoneMill)) { recipe = r; break; }
         bool started = _mill.StartRecipe(recipe, _player.Inventory);
-        // recipe is 15 processing-seconds; SecondsPerGameMinute=1 so 20 game-min = 20s
+        // recipe is 15 processing-seconds; 20 game-min × SecondsPerGameMinute ≥ 20s either way
         EventBus.Publish(new GameTickEvent { DeltaMinutes = 20f, TotalGameMinutes = 130f });
         int flourBefore = _player.Inventory.GetCount("flour");
         bool collected = _mill.CollectOutput(_player.Inventory);
@@ -491,6 +495,124 @@ public static class PlayModeVerify
 
     private static void Shot(string name) =>
         ScreenCapture.CaptureScreenshot(Path.Combine(_outDir, name + ".png"));
+
+    // ---------------- v2 idle-pivot steps (spec 2026-09-09) ----------------
+
+    private static void StepTapMove()
+    {
+        // TapController reads Input, which can't be injected — drive the same pieces it calls.
+        var from = GridMath.WorldToGrid(_player.transform.position, _player.CurrentTier);
+        var target = FindCell(c => Mathf.RoundToInt(c.Elevation) == _player.CurrentTier &&
+                                   c.GridPos != from &&
+                                   GridPath.Find(_island, from, c.GridPos) != null);
+        if (target == null) { Fail("Tap-to-move", "no reachable cell on the player's tier"); return; }
+
+        var path = GridPath.Find(_island, from, target.GridPos);
+        _player.WalkPath(path, () => { });
+        bool walking = _player.IsAutoWalking;
+        _player.FaceCell(target.GridPos);
+        _player.CancelWalk();
+        bool stopped = !_player.IsAutoWalking;
+        Check("Tap-to-move path + walk + cancel", path != null && walking && stopped,
+            $"path={path?.Count} steps to {target.GridPos}, walking={walking}, cancelled={stopped}");
+    }
+
+    private static void StepAutomation()
+    {
+        var auto = SkyHarvest.Sim.AutomationSystem.Instance;
+        if (auto == null) { Fail("Automation", "AutomationSystem missing (Bootstrap didn't build it)"); return; }
+
+        var postPos = FindFreeCell();
+        BuildModeController.Instance.PlaceStructure(postPos, GameDatabase.GetStructure("tenders_post"));
+        var post = StructureRegistry.Instance.GetStructureAt(postPos) as AutomationStructure;
+        if (post?.Device is not SkyHarvest.Sim.TendersPost)
+        {
+            Fail("Automation", $"tender's post device missing at {postPos} ({post?.Device?.Kind.ToString() ?? "null"})");
+            return;
+        }
+
+        // A crate in one of the eight neighbouring cells is what the post harvests into.
+        var crateCell = FindCell(c => Chebyshev(c.GridPos, postPos) == 1 &&
+                                      !StructureRegistry.Instance.HasStructureAt(c.GridPos));
+        if (crateCell == null) { Fail("Automation", "no free cell adjacent to the post"); return; }
+        BuildModeController.Instance.PlaceStructure(crateCell.GridPos, GameDatabase.GetStructure("crate"));
+        var crate = StructureRegistry.Instance.GetStructureAt(crateCell.GridPos) as SkyHarvest.Storage.StorageContainer;
+        if (crate == null) { Fail("Automation", "crate missing"); return; }
+        crate.Storage.TryAdd("wheat_seed", 5);
+
+        // An empty tilled plot inside the post's 3x3 for it to replant.
+        var plotCell = FindCell(c => Chebyshev(c.GridPos, postPos) <= 1 && !c.IsTilled &&
+                                     TerrainProperties.CanPlaceCrops(c.Terrain));
+        if (plotCell == null) { Fail("Automation", "no tillable cell in the post's radius"); return; }
+        var plot = FarmingActions.TryTill(plotCell, _island, UnityEngine.Object.FindObjectOfType<IslandRenderer>());
+        if (plot == null) { Fail("Automation", "till failed"); return; }
+
+        auto.Power.Add(50f);
+        auto.MarkDirty();
+        int seedsBefore = crate.Storage.GetCount("wheat_seed");
+        EventBus.Publish(new GameTickEvent { DeltaMinutes = 1f, TotalGameMinutes = 200f });
+
+        bool replanted = plot.Crop != null;
+        bool seedSpent = crate.Storage.GetCount("wheat_seed") < seedsBefore;
+        Shot("automation_tenders_post");
+        Check("Tender's post replants from adjacent storage", replanted && seedSpent,
+            $"post={postPos}, crate={crateCell.GridPos}, plot={plotCell.GridPos}, crop={plot.Crop?.CropId ?? "none"}, seeds {seedsBefore}→{crate.Storage.GetCount("wheat_seed")}");
+    }
+
+    private static void StepSprinkler()
+    {
+        var auto = SkyHarvest.Sim.AutomationSystem.Instance;
+        if (auto == null) { Fail("Sprinkler", "AutomationSystem missing"); return; }
+
+        // Place the sprinkler next to a tilled cell — its 3x3 has to actually contain a plot.
+        var dryCell = FindCell(c => c.IsTilled &&
+            FindCell(f => Chebyshev(f.GridPos, c.GridPos) <= 1 &&
+                          !StructureRegistry.Instance.HasStructureAt(f.GridPos)) != null);
+        if (dryCell == null) { Fail("Sprinkler", "no tilled cell with a free neighbour"); return; }
+        var free = FindCell(f => Chebyshev(f.GridPos, dryCell.GridPos) <= 1 &&
+                                 !StructureRegistry.Instance.HasStructureAt(f.GridPos));
+        var pos = free.GridPos;
+
+        BuildModeController.Instance.PlaceStructure(pos, GameDatabase.GetStructure("sprinkler"));
+        var spr = StructureRegistry.Instance.GetStructureAt(pos) as AutomationStructure;
+        if (spr?.Device is not SkyHarvest.Sim.Sprinkler) { Fail("Sprinkler", "device missing"); return; }
+
+        dryCell.Soil.SetState(0f, 100f);
+
+        auto.Water.Add(200f);
+        auto.MarkDirty();
+        float before = dryCell.Soil.WaterLevel;
+        EventBus.Publish(new GameTickEvent { DeltaMinutes = 1f, TotalGameMinutes = 201f });
+
+        Check("Sprinkler waters from the network", dryCell.Soil.WaterLevel > before,
+            $"soil {before:F1}→{dryCell.Soil.WaterLevel:F1}, network={auto.Water.Stored:F0}/{auto.Water.Capacity:F0}");
+    }
+
+    private static void StepOfflineCatchup()
+    {
+        var auto = SkyHarvest.Sim.AutomationSystem.Instance;
+        if (auto == null) { Fail("Offline catch-up", "AutomationSystem missing"); return; }
+
+        auto.Water.Add(500f);
+        auto.Power.Add(200f);
+        long lastSeen = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 1800;   // 30 minutes away
+        var report = auto.RunOfflineCatchup(lastSeen);
+        if (report == null) { Fail("Offline catch-up", "RunOfflineCatchup returned null"); return; }
+
+        var wb = UnityEngine.Object.FindObjectOfType<WelcomeBackUI>();
+        var panel = FindPanelGo("WelcomeBackPanel");
+        wb?.Show(report);
+        bool shown = wb != null && wb.IsOpen && panel != null && panel.activeInHierarchy;
+        Shot("welcome_back");
+        wb?.Close();
+
+        Check("Offline catch-up + Welcome Back panel",
+            report.ElapsedSeconds == 1800 && shown,
+            $"elapsed={report.ElapsedSeconds}s, harvested={report.TotalHarvested}, replanted={report.Replanted}, batches={report.BatchesCompleted}, panelShown={shown}");
+    }
+
+    private static int Chebyshev(Vector2Int a, Vector2Int b) =>
+        Mathf.Max(Mathf.Abs(a.x - b.x), Mathf.Abs(a.y - b.y));
 
     private static Vector2Int FindFreeCell()
     {

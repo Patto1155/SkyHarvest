@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>annotations</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>SkyHarvest</AssemblyName>
+    <RootNamespace>SkyHarvest</RootNamespace>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS8632;CS0067;CS0108;CS0109;CS0114;CS0169;CS0414;CS0649;CS1998;CS0162;CS0219</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="HarnessShims.cs" />
+    <Compile Include="../../../Assets/Scripts/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../UnityStubs/UnityStubs.csproj" />
+  </ItemGroup>
+
+</Project>

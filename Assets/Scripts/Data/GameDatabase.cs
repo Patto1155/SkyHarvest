@@ -308,6 +308,76 @@ namespace SkyHarvest.Data
                     new BuildCost { ItemId = "scrap", Amount = 2 },
                     new BuildCost { ItemId = "nails", Amount = 2 }
                 }
+            },
+
+            // ---- v2 automation layer (spec 2026-09-09 §4) ----
+            new StructureDef
+            {
+                StructureId = "water_tank", DisplayName = "Water Tank",
+                Automation = AutomationKind.WaterTank, SpriteFrameWidth = 64,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "wood",  Amount = 4 },
+                    new BuildCost { ItemId = "scrap", Amount = 3 },
+                    new BuildCost { ItemId = "nails", Amount = 2 }
+                }
+            },
+            new StructureDef
+            {
+                StructureId = "sprinkler", DisplayName = "Sprinkler",
+                Automation = AutomationKind.Sprinkler, SpriteFrameWidth = 64,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "scrap", Amount = 3 },
+                    new BuildCost { ItemId = "nails", Amount = 2 },
+                    new BuildCost { ItemId = "rope",  Amount = 1 }
+                }
+            },
+            new StructureDef
+            {
+                StructureId = "wind_totem", DisplayName = "Wind Totem",
+                Automation = AutomationKind.WindTotem, SpriteFrameWidth = 64,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "wood", Amount = 4 },
+                    new BuildCost { ItemId = "rope", Amount = 1 }
+                }
+            },
+            new StructureDef
+            {
+                StructureId = "tenders_post", DisplayName = "Tender's Post",
+                Automation = AutomationKind.TendersPost, SpriteFrameWidth = 96,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "wood",  Amount = 6 },
+                    new BuildCost { ItemId = "nails", Amount = 4 },
+                    new BuildCost { ItemId = "rope",  Amount = 2 },
+                    new BuildCost { ItemId = "scrap", Amount = 1 }
+                }
+            },
+            new StructureDef
+            {
+                StructureId = "composter", DisplayName = "Composter",
+                Automation = AutomationKind.Composter, SpriteFrameWidth = 64,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "wood",  Amount = 4 },
+                    new BuildCost { ItemId = "stone", Amount = 2 }
+                }
+            },
+            new StructureDef
+            {
+                StructureId = "windmill", DisplayName = "Windmill",
+                Automation = AutomationKind.Windmill, SpriteFrameWidth = 96,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "wood",  Amount = 6 },
+                    new BuildCost { ItemId = "nails", Amount = 4 },
+                    new BuildCost { ItemId = "rope",  Amount = 2 }
+                }
+            },
+            new StructureDef
+            {
+                StructureId = "battery", DisplayName = "Battery",
+                Automation = AutomationKind.Battery, SpriteFrameWidth = 64,
+                BuildCosts = new[] {
+                    new BuildCost { ItemId = "scrap", Amount = 4 },
+                    new BuildCost { ItemId = "nails", Amount = 4 }
+                }
             }
         };
     }

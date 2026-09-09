@@ -25,6 +25,9 @@ namespace SkyHarvest.Workshop
         // Set by subclass Start()
         protected string _workshopId;
 
+        /// <summary>Shared with the offline IslandSim, which ticks it while the player is away.</summary>
+        public WorkshopProcess Process => _process;
+
         public WorkshopProcess.State ProcessState => _process.CurrentState;
         public float Progress => _process.Progress;
         public bool IsProcessing => _process.IsProcessing;
@@ -227,6 +230,15 @@ namespace SkyHarvest.Workshop
             if (TryDemolishWithHammer(player)) return;
             // Open WorkshopUI — UI agent handles this via event.
             EventBus.Publish(new WorkshopInteractEvent { Workshop = this, Player = player });
+        }
+
+        /// <summary>Re-sync sprite/anim after the process was advanced externally (offline catch-up).</summary>
+        public void RefreshVisualFromState()
+        {
+            if (_process.IsProcessing) SetWorkingVisual();
+            else SetIdleVisual();
+            if (_process.IsComplete)
+                EventBus.Publish(new WorkshopCompletedEvent { RecipeId = _process.RecipeId, WorkshopId = Def?.StructureId ?? "unknown" });
         }
 
         /// <summary>Restore workshop batch state after save load.</summary>

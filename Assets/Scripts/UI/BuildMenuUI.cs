@@ -70,16 +70,27 @@ namespace SkyHarvest.UI
             Close();
         }
 
+        /// <summary>First visible row: keeps the selection inside the fixed row window.</summary>
+        public static int ScrollOffset(int selected, int total, int rows)
+        {
+            if (rows <= 0 || total <= rows) return 0;
+            int maxOffset = total - rows;
+            return System.Math.Clamp(selected - rows / 2, 0, maxOffset);
+        }
+
         private void Refresh()
         {
             if (_entryTexts == null) return;
-            for (int i = 0; i < _entryTexts.Length && i < _defs.Count; i++)
+            int rows   = _entryTexts.Length;
+            int offset = ScrollOffset(_selectedIndex, _defs.Count, rows);
+            for (int i = 0; i < rows; i++)
             {
-                string prefix = i == _selectedIndex ? "> " : "  ";
-                _entryTexts[i].text = prefix + _defs[i].DisplayName;
+                int idx = offset + i;
+                if (idx >= _defs.Count) { _entryTexts[i].text = ""; continue; }
+                string prefix = idx == _selectedIndex ? "> " : "  ";
+                string more = (i == 0 && offset > 0) ? " ▲" : (i == rows - 1 && offset + rows < _defs.Count) ? " ▼" : "";
+                _entryTexts[i].text = prefix + _defs[idx].DisplayName + more;
             }
-            for (int i = _defs.Count; i < _entryTexts.Length; i++)
-                _entryTexts[i].text = "";
 
             if (_costText != null && _selectedIndex < _defs.Count)
             {

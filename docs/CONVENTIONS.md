@@ -105,6 +105,13 @@ All under `Assets/Resources/Sprites/`. Strips are horizontal, left→right. Size
 | `structures/forge.png` | 4 × 128x128 | ember glow pulse |
 | `structures/crate.png` | 1 × 48x48 | |
 | `structures/barrel.png` | 1 × 48x64 | |
+| `structures/water_tank.png` | 1 × 64x96 | v2 automation: rusted drum on a timber cradle |
+| `structures/sprinkler.png` | 2 × 64x80 | idle / spraying |
+| `structures/wind_totem.png` | 1 × 64x80 | cloth streamers |
+| `structures/tenders_post.png` | 2 × 96x96 | idle / lantern lit (working) |
+| `structures/composter.png` | 1 × 64x80 | open bin of compost |
+| `structures/windmill.png` | 4 × 96x160 | sails rotate a quarter turn per frame |
+| `structures/battery.png` | 1 × 64x64 | copper-capped cell jars |
 | `debris/debris_1.png` … `debris_3.png` | 1 × 48x48 each | salvage piles |
 | `items/icon_<itemId>.png` | 1 × 32x32 | one per item ID below |
 | `ui/icon_tool_{hoe,wateringcan,sickle,hammer}.png` | 1 × 32x32 | |
@@ -144,6 +151,10 @@ only — used on logo accent). Nothing clean or saturated; weather-beaten, hand-
   `skynet` 1 skynet_frame+2 rope (cliff-edge cells only; passively accrues loot on a real-time timer,
   collected on interact); `crate` 4 wood (10 slots); `barrel` 3 wood+1 scrap (8 slots); `drying_rack`
   4 wood+2 rope; `stone_mill` 6 stone+4 wood+2 nails; `forge` 8 stone+2 scrap+2 nails.
+- **v2 automation structures** (spec `2026-09-09-sky-harvest-idle-pivot.md` §4; each carries
+  `StructureDef.Automation` and spawns a `Sim.AutomationDevice`): `water_tank` 4 wood+3 scrap+2 nails;
+  `sprinkler` 3 scrap+2 nails+1 rope; `wind_totem` 4 wood+1 rope; `tenders_post` 6 wood+4 nails+
+  2 rope+1 scrap; `composter` 4 wood+2 stone; `windmill` 6 wood+4 nails+2 rope; `battery` 4 scrap+4 nails.
 - **Debris loot table** (weight, min-max): scrap 30 1-3; wood 25 1-4; stone 20 1-3; iron_ore 10 1-2;
   coal 8 1-2; rope 5 1-2; wheat_seed 1.5 1; herb_seed 0.5 1. Storm/gale variant doubles iron_ore/coal/rope
   weights. Skynet table = storm variant.
