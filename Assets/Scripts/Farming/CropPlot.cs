@@ -19,6 +19,8 @@ namespace SkyHarvest.Farming
         // ---- data ----
         public SoilState Soil { get; set; } = null!;
         public CropState? Crop { get; set; }
+        /// <summary>Crop most recently planted here; Tender's Posts replant the same thing.</summary>
+        public string? LastCropId { get; set; }
 
         // ---- state flags ----
         public bool HasCrop  => Crop != null && !Crop.IsDead;

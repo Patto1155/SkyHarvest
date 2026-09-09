@@ -61,6 +61,8 @@ namespace SkyHarvest.Farming
                     plot.Soil.AddWater(rainWater);
 
                 float windDamage = GetWindDamage(weather);
+                if (windDamage > 0f && Sim.AutomationSystem.Instance?.IsWindProtected(plot.GridPos) == true)
+                    windDamage = 0f;
                 plot.Crop.Tick(e.DeltaMinutes, plot.Soil, sunExposure, windDamage);
 
                 // Refresh visual overlay after every tick

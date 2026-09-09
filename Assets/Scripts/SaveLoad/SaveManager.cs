@@ -51,11 +51,16 @@ namespace SkyHarvest.SaveLoad
             var gm = GameManager.Instance;
             var wm = Weather.WeatherManager.Instance;
 
+            var auto = Sim.AutomationSystem.Instance;
+
             var data = new WorldSaveData
             {
                 GameTimeMinutes      = gm != null ? gm.Clock.TotalMinutes : 0f,
                 WeatherState         = wm != null ? wm.CurrentWeather.ToString() : "ClearSkies",
                 WeatherTimeRemaining = wm?.StateMachine?.MinutesRemaining ?? 5f,
+                LastSeenUnixTime     = System.DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                WaterStored          = auto?.Water.Stored ?? 0f,
+                PowerStored          = auto?.Power.Stored ?? 0f,
             };
 
             if (gm?.CurrentIsland != null)
@@ -115,6 +120,14 @@ namespace SkyHarvest.SaveLoad
                         data.Island.Skynets.Add(snd);
                     }
 
+                    if (s is AutomationStructure { Device: Sim.Composter comp })
+                    {
+                        data.Island.Devices.Add(new DeviceSaveData
+                        {
+                            GridX = s.GridPosition.x, GridY = s.GridPosition.y, Stock = comp.Stock
+                        });
+                    }
+
                     if (s is WorkshopBase wb && wb.ProcessState != WorkshopProcess.State.Idle)
                     {
                         data.Island.Workshops.Add(new WorkshopSaveData
@@ -133,7 +146,15 @@ namespace SkyHarvest.SaveLoad
 
             foreach (var plot in Object.FindObjectsOfType<CropPlot>())
             {
-                if (plot.Crop == null) continue;
+                if (plot.Crop == null)
+                {
+                    data.Island.EmptyPlots.Add(new PlotSaveData
+                    {
+                        GridX = plot.GridPos.x, GridY = plot.GridPos.y,
+                        LastCropId = plot.LastCropId ?? ""
+                    });
+                    continue;
+                }
                 data.Island.Crops.Add(new CropSaveData
                 {
                     CropId = plot.Crop.CropId,
@@ -186,6 +207,25 @@ namespace SkyHarvest.SaveLoad
             {
                 var cell = island.GetCell(new Vector2Int(cd.X, cd.Y));
                 cell?.Soil.SetState(cd.WaterLevel, cd.Nutrients);
+            }
+        }
+
+        /// <summary>Restore network buffers and per-device state once structures exist again.</summary>
+        public void ApplyAutomationState(WorldSaveData data)
+        {
+            var auto = Sim.AutomationSystem.Instance;
+            var registry = StructureRegistry.Instance;
+            if (auto == null || registry == null) return;
+
+            auto.MarkDirty();
+            _ = auto.Sim;   // derives capacities from placed tanks/batteries before restoring stock
+            auto.Water.Restore(data.WaterStored);
+            auto.Power.Restore(data.PowerStored);
+
+            foreach (var dd in data.Island.Devices)
+            {
+                var s = registry.GetStructureAt(new Vector2Int(dd.GridX, dd.GridY));
+                if (s is AutomationStructure { Device: Sim.Composter comp }) comp.Restore(dd.Stock);
             }
         }
     }

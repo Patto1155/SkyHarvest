@@ -48,6 +48,9 @@ namespace SkyHarvest.Building
             float gained = WaterPerRainMinute * e.DeltaMinutes * mult;
             _waterStore = Mathf.Min(_waterStore + gained, MaxWaterStore);
 
+            // Also feed the island-wide network that sprinklers draw from offline.
+            Sim.AutomationSystem.Instance?.Water.Add(gained);
+
             // Auto-water nearby crop plots within radius
             AutoWaterNearby(gained);
 

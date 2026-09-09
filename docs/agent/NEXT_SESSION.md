@@ -1,5 +1,28 @@
 # Next session — task list
 
+> **Session 8 (2026-09-09) pivoted the game to an Android idle sky-farm** — see START_HERE.md and
+> `docs/superpowers/specs/2026-09-09-sky-harvest-idle-pivot.md`. Phase 1 (offline sim, automation
+> devices, save v2, Welcome Back panel, portrait settings) is on `claude/laughing-mayer-3s61u8`.
+> **Phase 2 is the priority list now; the older items below are still valid but secondary.**
+>
+> ## Phase 2 — make it a phone game
+> 1. **Human verify Phase 1 in the editor** (nothing below was run in Unity): New Game → place
+>    `sprinkler` + `tenders_post` + `crate` (with seeds) around tilled plots → Save+Quit → wait a
+>    few minutes → Continue → Welcome Back panel. Also confirm `AutomationStructure` prompt text and
+>    that the magenta fallback sprites appear where expected.
+> 2. **Tap-to-move / tap-to-interact** — replace WASD+E as the primary input. Tap a tile: if the
+>    avatar is adjacent, interact; otherwise walk there (straight-line, tier-gated by
+>    `IslandData.CanTraverse`) then interact. Keep keyboard as a debug fallback.
+> 3. **Portrait HUD relayout** — hotbar/prompt anchored to bottom in a 9:16 canvas
+>    (`CanvasScaler` ScaleWithScreenSize, reference 720×1280), panels centred and narrower.
+>    `BuildMenuUI` needs paging/scroll (12 rows, 18 structures).
+> 4. **Sprites for the 7 devices** (`structures/{water_tank,sprinkler,wind_totem,tenders_post,
+>    composter,windmill,battery}.png`) + rows in CONVENTIONS manifest. Windmill 4-frame strip.
+> 5. **Retune time**: `SecondsPerGameMinute` 1 → 60 so crop timers match the spec's real minutes and
+>    offline yields stop being absurd; re-check `verify.sh` timings after.
+> 6. **Notification hook** when storage caps offline (Android local notification; later).
+> 7. **Rewarded-double / time-warp hooks** on the Welcome Back panel (stub the callbacks; no SDK yet).
+
 Execute in order. Branch off `main` — note `feat/bugfixes-and-session-prs` (commit `6c98a7e`)
 is sitting uncommitted-to-main and **not yet merged**; merge or rebase onto it first, don't
 redo its work. Validate (`bash tools/check.sh` after every C# change — see the `--no-build`

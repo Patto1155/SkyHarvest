@@ -93,6 +93,7 @@ namespace SkyHarvest.Farming
                 cropDef.GrowthTimeMinutes,
                 cropDef.GrowthStages,
                 cropDef.WaterConsumptionPerMinute);
+            plot.LastCropId = cropDef.CropId;
 
             CropGrowthSystem.Instance?.Register(plot);
             EventBus.Publish(new CropPlantedEvent { CropId = cropDef.CropId });

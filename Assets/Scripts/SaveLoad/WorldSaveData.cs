@@ -6,12 +6,23 @@ namespace SkyHarvest.SaveLoad
     [Serializable]
     public class WorldSaveData
     {
-        public int Version = 1;
+        public int Version = 2;
         public float GameTimeMinutes;
         public string WeatherState = "ClearSkies";
         public float WeatherTimeRemaining;
+        /// <summary>Real-time stamp of the save; drives offline catch-up on Continue (v2).</summary>
+        public long LastSeenUnixTime;
+        public float WaterStored;
+        public float PowerStored;
         public IslandSaveData Island = new();
         public PlayerSaveData Player = new();
+    }
+
+    [Serializable]
+    public class DeviceSaveData
+    {
+        public int GridX, GridY;
+        public int Stock;   // composter compost stock; unused by other devices
     }
 
     [Serializable]
@@ -24,9 +35,11 @@ namespace SkyHarvest.SaveLoad
         public List<CellSaveData> ModifiedCells = new();
         public List<StructureSaveData> Structures = new();
         public List<CropSaveData> Crops = new();
+        public List<PlotSaveData> EmptyPlots = new();
         public List<StorageSaveData> Storages = new();
         public List<SkynetSaveData> Skynets = new();
         public List<WorkshopSaveData> Workshops = new();
+        public List<DeviceSaveData> Devices = new();
     }
 
     [Serializable]
@@ -54,6 +67,14 @@ namespace SkyHarvest.SaveLoad
         public string CropId = "";
         public int GridX, GridY;
         public float GrowthProgress, Health;
+    }
+
+    /// <summary>Tilled plots with no crop — Tender's Posts need them to exist to replant into.</summary>
+    [Serializable]
+    public class PlotSaveData
+    {
+        public int GridX, GridY;
+        public string LastCropId = "";
     }
 
     [Serializable]

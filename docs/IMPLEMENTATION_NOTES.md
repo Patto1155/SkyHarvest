@@ -29,5 +29,11 @@ Functional additions beyond the plan (small, spec-aligned):
 - Audio cues are synthesized procedurally at runtime (no .wav assets can be authored here) by
   `AudioCueSystem` — distinct chimes/thuds per spec §5 player-readable cues.
 
+v2 idle pivot (2026-09-09): offline progression is a pure-C# `IslandSim` that shares the live
+`SoilState`/`CropState`/`Inventory`/`WorkshopProcess` objects, so replaying time away mutates the
+real game state directly — no parallel data model to keep in sync. Automation structures are one
+`AutomationStructure` MonoBehaviour wrapping a pure `AutomationDevice`. The `tools/clr-harness`
+`.csproj` files are committed (previously swallowed by the `*.csproj` gitignore rule).
+
 If the hand-written `Main.unity` ever fails to open: create an empty scene, add an empty GameObject,
 attach `Bootstrap` (Assets/Scripts/Core/Bootstrap.cs), press Play. That is the entire wiring.

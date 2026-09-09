@@ -29,6 +29,7 @@ namespace SkyHarvest.Core
         private BuildMenuUI? _buildMenu;
         private PauseMenuUI? _pauseMenu;
         private MainMenuUI? _mainMenu;
+        private WelcomeBackUI? _welcomeBack;
         private GameObject? _hudCanvas;   // panels live here; needed to find INACTIVE ones
 
         private UI.GameCursor?       _gameCursor;
@@ -40,7 +41,9 @@ namespace SkyHarvest.Core
         private void Awake()
         {
             Application.targetFrameRate = 60;
+#if UNITY_STANDALONE || UNITY_EDITOR
             Screen.SetResolution(1280, 720, false);
+#endif
 
             EnsureEventSystem();
             BuildManagers();
@@ -69,6 +72,7 @@ namespace SkyHarvest.Core
             new GameObject("WeatherManager").AddComponent<WeatherManager>();
             new GameObject("CropGrowthSystem").AddComponent<CropGrowthSystem>();
             new GameObject("StructureRegistry").AddComponent<StructureRegistry>();
+            new GameObject("AutomationSystem").AddComponent<Sim.AutomationSystem>();
             new GameObject("AudioCueSystem").AddComponent<AudioCueSystem>();
         }
 
@@ -247,6 +251,18 @@ namespace SkyHarvest.Core
             MakeButton("Resume",    pausePanel.transform, new Vector2(0f,  80f)).onClick.AddListener(_pauseMenu.OnResumeClicked);
             MakeButton("Save",      pausePanel.transform, new Vector2(0f,  20f)).onClick.AddListener(_pauseMenu.OnSaveClicked);
             MakeButton("Save+Quit", pausePanel.transform, new Vector2(0f, -40f)).onClick.AddListener(_pauseMenu.OnSaveAndQuitClicked);
+
+            // ---- Welcome Back panel (offline catch-up report) ----
+            var wbPanel = MakePanel("WelcomeBackPanel", canvasGO.transform, Vector2.zero, new Vector2(360f, 320f));
+            wbPanel.SetActive(false);
+            var wbTitle = MakeText("WbTitle", wbPanel.transform, new Vector2(0f, 125f), "While you were away", 18);
+            wbTitle.fontStyle = FontStyle.Bold;
+            var wbBody = MakeText("WbBody", wbPanel.transform, new Vector2(0f, 10f), "", 14);
+            wbBody.alignment = TextAnchor.UpperLeft;
+            wbBody.GetComponent<RectTransform>().sizeDelta = new Vector2(320f, 200f);
+            var wbCollect = MakeButton("Collect", wbPanel.transform, new Vector2(0f, -130f));
+            _welcomeBack = canvasGO.AddComponent<WelcomeBackUI>();
+            _welcomeBack.Initialize(wbPanel, wbTitle, wbBody, wbCollect);
 
             // ---- Keybind help overlay (H to toggle) ----
             _keybindPanel = MakePanel("KeybindPanel", canvasGO.transform, Vector2.zero, new Vector2(420f, 340f));
@@ -429,7 +445,18 @@ namespace SkyHarvest.Core
                 plotGO.transform.position = GridMath.GridToWorld(pos);
                 var plot = plotGO.AddComponent<Farming.CropPlot>();
                 plot.Initialize(cell.Soil, cropState, pos);
+                plot.LastCropId = cropDef.CropId;
                 CropGrowthSystem.Instance?.Register(plot);
+            }
+
+            // Empty tilled plots (v2) — Tender's Posts replant into these.
+            foreach (var ps in data.Island.EmptyPlots)
+            {
+                var pos  = new Vector2Int(ps.GridX, ps.GridY);
+                var cell = island.GetCell(pos);
+                if (cell == null || cell.IsTilled) continue;
+                var plot = FarmingActions.TryTill(cell, island, _islandRenderer);
+                if (plot != null && !string.IsNullOrEmpty(ps.LastCropId)) plot.LastCropId = ps.LastCropId;
             }
 
             var debrisSpawner = Object.FindObjectOfType<DebrisSpawner>();
@@ -439,6 +466,11 @@ namespace SkyHarvest.Core
             WireGameCursor(island);
             EventBus.Publish(new GameStartedEvent { LoadedFromSave = true });
             _gameStarted = true;
+
+            // v2 offline catch-up: replay the time away, then show the Welcome Back report.
+            SaveManager.Instance?.ApplyAutomationState(data);
+            var report = Sim.AutomationSystem.Instance?.RunOfflineCatchup(data.LastSeenUnixTime);
+            if (report != null && report.HasAnythingToShow) _welcomeBack?.Show(report);
         }
 
         private void RestoreIslandContents(WorldSaveData data)
@@ -658,7 +690,8 @@ namespace SkyHarvest.Core
             // Esc: close the topmost open thing; pause only when nothing is open
             if (Input.GetKeyDown(KeyCode.Escape))
             {
-                if      (_keybindPanel != null && _keybindPanel.activeSelf) _keybindPanel.SetActive(false);
+                if      (_welcomeBack != null && _welcomeBack.IsOpen)      _welcomeBack.Close();
+                else if (_keybindPanel != null && _keybindPanel.activeSelf) _keybindPanel.SetActive(false);
                 else if (_buildMenu != null && _buildMenu.IsOpen)     { _buildMenu.Close(); bmc?.ExitBuildMode(); }
                 else if (bmc != null && bmc.IsActive)                 bmc.ExitBuildMode();
                 else if (_storageUI != null && _storageUI.IsOpen)     _storageUI.Close();

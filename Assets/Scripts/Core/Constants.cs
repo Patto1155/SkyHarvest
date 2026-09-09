@@ -21,6 +21,12 @@ namespace SkyHarvest.Core
         public const float MinWeatherDurationMinutes = 5f;
         public const float MaxWeatherDurationMinutes = 10f;
 
+        // Offline simulation (spec 2026-09-09 §3)
+        public const long  OfflineCapSeconds = 4 * 60 * 60;
+        // 10s keeps per-step crop water draw (WaterConsumptionPerMinute × 10) under a
+        // sprinkler's refill, so coarse replay matches live pacing. 4h cap = 1440 steps.
+        public const float OfflineStepSeconds = 10f;
+
         // Debris
         public const float BaseDebrisIntervalSeconds = 45f;
         public const float GaleWindDebrisMultiplier = 0.4f;

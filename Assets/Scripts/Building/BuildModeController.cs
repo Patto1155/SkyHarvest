@@ -249,6 +249,9 @@ namespace SkyHarvest.Building
 
         private Structure AttachStructureComponent(GameObject go, StructureDef def)
         {
+            if (def.Automation != AutomationKind.None)
+                return go.AddComponent<AutomationStructure>();
+
             return def.StructureId switch
             {
                 "rain_catcher" => go.AddComponent<RainCatcher>(),

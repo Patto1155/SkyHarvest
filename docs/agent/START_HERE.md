@@ -11,7 +11,42 @@ Also: **SCOPE_LEDGER.md** — spec/plan vs code gap list + keybind reconciliatio
 
 Don't read the 100KB MVP plan or full design spec unless a task needs a specific detail. `docs/IMPLEMENTATION_NOTES.md` explains why this is headless-built (code-constructed scene, no prefabs/ScriptableObjects).
 
-## Current state (2026-06-16, session 7 — playtest bugfixes + 7 polish PRs)
+## Current state (2026-09-09, session 8 — v2 idle pivot, Phase 1)
+
+Patrick re-scoped the game: **Android portrait idle sky-farm** (Idle Obelisk Miner / AdCap /
+SkyFactory influences). Design agreed in chat and written to
+`docs/superpowers/specs/2026-09-09-sky-harvest-idle-pivot.md` — read that before the March spec.
+Real crop system stays; "iron grows on plants" is a late unlock; never punish absence.
+
+Landed on branch `claude/laughing-mayer-3s61u8`:
+- **`Assets/Scripts/Sim/`** — pure-C# `IslandSim` + automation devices + `OfflineCatchup` +
+  `OfflineReport`; `AutomationSystem` MonoBehaviour ticks devices live and replays time away on
+  Continue. See MAP.md "Sim" section. 31 new NUnit tests (163 total, all green in `check.sh`).
+- 7 new structures in `GameDatabase` (`water_tank`, `sprinkler`, `wind_totem`, `tenders_post`,
+  `composter`, `windmill`, `battery`) via `StructureDef.Automation` → `AutomationStructure`.
+  **No sprites yet** — they render the magenta fallback until art lands (manifest in CONVENTIONS
+  needs 7 new `structures/*.png` rows).
+- Save v2: `LastSeenUnixTime`, water/power buffers, composter stock, empty tilled plots.
+- `WelcomeBackUI` panel ("While you were away") built in `Bootstrap.BuildUI`, shown after load.
+- `CropState.Tick` now samples the soil multiplier before drawing water (coarse steps were
+  reading 0 after the draw and crediting no growth).
+- `ProjectSettings`: portrait-only orientation, Android identifier, min SDK 24. Target SDK left at
+  0 (= highest installed) — Android 16 is API 36; set explicitly once the Unity Android module is
+  confirmed to know it.
+- **Harness restored:** `tools/clr-harness/**/*.csproj` were gitignored and never committed; they're
+  now in git (`.gitignore` exception) and `check.sh` builds the Tests project too. Linux: `apt
+  install dotnet-sdk-8.0` is enough.
+- **Not verified in Unity** (no editor in this environment): `tools/verify.sh` / PlayModeVerify
+  untouched; the Bootstrap/UI wiring compiles against stubs only. First human run should: New Game
+  → build sprinkler + tender's post + crate with seeds next to plots → Save+Quit → wait → Continue
+  → Welcome Back panel lists harvests.
+
+Known gaps / next (also in NEXT_SESSION.md): tap-to-move + portrait HUD relayout; sprites for the
+7 devices; `BuildMenuUI` has 12 fixed rows but 18 structures now (needs scrolling/paging);
+`SecondsPerGameMinute = 1` means 1 real second = 1 game minute so offline yields are enormous —
+retune before any external playtest.
+
+## Previous state (2026-06-16, session 7 — playtest bugfixes + 7 polish PRs)
 
 - **Branch `feat/bugfixes-and-session-prs` (commit `6c98a7e`, NOT yet merged/pushed)** — two
   batches of work landed in one session, on top of the session-6 starter-island work below:

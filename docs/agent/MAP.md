@@ -97,8 +97,30 @@ see `docs/IMPLEMENTATION_NOTES.md`). One runtime asmdef: `Assets/Scripts/SkyHarv
   child GameObject**, never `AddComponent` it directly onto the panel.
 - Keybinds: ALL routed through `Bootstrap.Update` — see SCOPE_LEDGER.md keybind table.
 
+## Sim — offline / automation layer (`Sim/`) — v2 idle pivot (spec `2026-09-09-sky-harvest-idle-pivot.md`)
+- `IslandSim` — pure-C# island: `Plots`/`Storages`/`Workshops`/`Devices` sharing one `WaterNetwork`
+  + `PowerGrid`. `Step(dt, env, tickCrops, tickWorkshops, report)` order: windmills→power,
+  springs→water, sprinklers, crops, Tender's Posts (harvest→adjacent storage, replant from its
+  seeds), composters, workshops. `Advance(elapsed)` replays offline time in
+  `Constants.OfflineStepSeconds` (10s) steps with `SimEnvironment.Offline` (no rain/wind).
+- `AutomationDevice` + subclasses `WaterTank`/`Battery`/`Windmill`/`Sprinkler`/`WindTotem`/
+  `Composter`/`TendersPost` — Chebyshev radius 1 (3×3). Balance constants live on each class.
+- `OfflineCatchup` — clamp elapsed to `Constants.OfflineCapSeconds` (4h), split into steps.
+- `OfflineReport` — harvested/replanted/batches + first `StorageFullAt`/`WaterEmptyAt`/`PowerEmptyAt`.
+- `AutomationSystem` (MonoBehaviour, built by Bootstrap) — owns the live `WaterNetwork`/`PowerGrid`,
+  lazily rebuilds the `IslandSim` from scene objects via `SimBridge` (dirty on place/demolish/
+  plant/harvest/expand), ticks devices on `GameTickEvent`, `RunOfflineCatchup(lastSeenUnix)` on
+  Continue. `SimBridge.SyncPlotsToScene` writes crop changes back to `CropPlot`s.
+- `Building/AutomationStructure` — the placed structure for any `StructureDef.Automation != None`;
+  holds the device. `BuildModeController.AttachStructureComponent` routes by that field first.
+- `UI/WelcomeBackUI` — "While you were away" panel shown from `Bootstrap.StartFromSave`.
+- `CropPlot.LastCropId` — what to replant. Empty tilled plots are now saved (`EmptyPlots`).
+
 ## Save/Load (`SaveLoad/`)
 - `SaveManager` (`persistentDataPath/saves/save.json`, JsonUtility) + `WorldSaveData` DTOs.
+  **v2 fields:** `LastSeenUnixTime` (drives offline catch-up), `WaterStored`/`PowerStored`,
+  `Island.Devices` (composter stock), `Island.EmptyPlots`. `ApplyAutomationState(data)` restores
+  buffers after structures exist (capacities derive from placed tanks/batteries).
   Construction sites persist via `StructureSaveData.Constructing` + `Delivered`.
   `IslandSaveData.IsStarterIsland`/`StairsCarved` + `PlayerSaveData.Tier` (added session 7) let
   `Bootstrap.StartFromSave` rebuild via `StarterIsland.Build` instead of `IslandGenerator`
