@@ -69,17 +69,93 @@ namespace SkyHarvest.Player
 
         private void Update()
         {
-            HandleMovement();
+            float h = Input.GetAxisRaw("Horizontal");
+            float v = Input.GetAxisRaw("Vertical");
+
+            if (h != 0f || v != 0f)
+            {
+                CancelWalk();          // keyboard always wins over an auto-walk
+                Move(h, v);
+                return;
+            }
+
+            if (_path != null) { FollowPath(); return; }
+
+            Move(0f, 0f);
+        }
+
+        // -----------------------------------------------------------------------
+        // Auto-walk (tap-to-move) — drives Move() so tier rules are identical
+        // -----------------------------------------------------------------------
+        private System.Collections.Generic.List<Vector2Int>? _path;
+        private int _pathIndex;
+        private System.Action? _onArrive;
+        private const float ArriveEpsilon = 0.08f;
+
+        public bool IsAutoWalking => _path != null;
+
+        public void WalkPath(System.Collections.Generic.List<Vector2Int> path, System.Action? onArrive)
+        {
+            if (path == null || path.Count == 0) { onArrive?.Invoke(); return; }
+            _path = path; _pathIndex = 0; _onArrive = onArrive;
+        }
+
+        public void CancelWalk()
+        {
+            _path = null; _onArrive = null;
+        }
+
+        private void FollowPath()
+        {
+            if (_path == null || Island == null) { CancelWalk(); return; }
+            if (_pathIndex >= _path.Count)
+            {
+                var done = _onArrive;
+                CancelWalk();
+                Move(0f, 0f);
+                done?.Invoke();
+                return;
+            }
+
+            var node = _path[_pathIndex];
+            Vector2 target = Core.GridMath.GridToWorld(node, Island.Tier(node));
+            Vector2 pos = transform.position;
+            Vector2 delta = target - pos;
+
+            if (delta.magnitude <= ArriveEpsilon)
+            {
+                _pathIndex++;
+                return;
+            }
+
+            var (h, v) = TapTargeting.WorldDirToAxes(delta);
+            Vector2 before = transform.position;
+            Move(h, v, maxStep: delta.magnitude);
+            if ((Vector2)transform.position == before)
+            {
+                // Blocked (something changed under us) — give up rather than jitter forever.
+                CancelWalk();
+                Move(0f, 0f);
+            }
+        }
+
+        /// <summary>Turn toward a cell without moving (used before acting on a tapped tile).</summary>
+        public void FaceCell(Vector2Int cell)
+        {
+            var cur = Core.GridMath.WorldToGrid(transform.position, CurrentTier);
+            var d = cell - cur;
+            if (d == Vector2Int.zero) return;
+            if (Mathf.Abs(d.x) >= Mathf.Abs(d.y)) _facing = d.x > 0 ? Facing.E : Facing.W;
+            else                                  _facing = d.y < 0 ? Facing.N : Facing.S;
+            if (!_isMoving) SetIdleAnimation();
         }
 
         // -----------------------------------------------------------------------
         // Movement
         // -----------------------------------------------------------------------
-        private void HandleMovement()
+        /// <summary>Move by input axes for this frame; (0,0) settles into idle.</summary>
+        public void Move(float h, float v, float maxStep = float.MaxValue)
         {
-            float h = Input.GetAxisRaw("Horizontal");
-            float v = Input.GetAxisRaw("Vertical");
-
             if (h == 0f && v == 0f)
             {
                 if (_isMoving)
@@ -94,7 +170,7 @@ namespace SkyHarvest.Player
             // Vertical maps to gx+gy direction.  Move in world-space 2D.
             Vector2 dir = new Vector2(h * 0.5f, v * 0.25f).normalized;
             Vector2 from = transform.position;
-            float step = _moveSpeed * Time.deltaTime;
+            float step = Mathf.Min(_moveSpeed * Time.deltaTime, maxStep);
             Vector2 candidate = from + dir * step;
 
             // Tier-aware clamp: a step is allowed only if the destination cell exists

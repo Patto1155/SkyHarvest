@@ -7,7 +7,10 @@ namespace SkyHarvest.Core
         public const int DefaultIslandRadius = 12;
 
         // Time
-        public const float SecondsPerGameMinute = 1f;
+        // 1 real minute = 1 game minute, so CropDef.GrowthTimeMinutes and weather durations are
+        // the real-time values the spec quotes (starter crops 2-5 min). Was 1f (60× faster) during
+        // the desktop prototype; verify-harness steps publish GameTickEvent directly so they don't care.
+        public const float SecondsPerGameMinute = 60f;
         public const float MinutesPerGameHour = 60f;
         public const float HoursPerGameDay = 24f;
 

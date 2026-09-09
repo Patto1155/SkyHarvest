@@ -318,7 +318,7 @@ public static class PlayModeVerify
         RecipeDef recipe = null;
         foreach (var r in GameDatabase.GetRecipesFor(WorkshopType.StoneMill)) { recipe = r; break; }
         bool started = _mill.StartRecipe(recipe, _player.Inventory);
-        // recipe is 15 processing-seconds; SecondsPerGameMinute=1 so 20 game-min = 20s
+        // recipe is 15 processing-seconds; 20 game-min × SecondsPerGameMinute ≥ 20s either way
         EventBus.Publish(new GameTickEvent { DeltaMinutes = 20f, TotalGameMinutes = 130f });
         int flourBefore = _player.Inventory.GetCount("flour");
         bool collected = _mill.CollectOutput(_player.Inventory);

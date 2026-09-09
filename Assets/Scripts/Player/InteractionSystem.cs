@@ -79,6 +79,68 @@ namespace SkyHarvest.Player
         }
 
         // -----------------------------------------------------------------------
+        // Tap-to-act — the tapped cell replaces "facing cell" as the target.
+        // Priority mirrors the E key: stairs → interactable on the cell → till.
+        // -----------------------------------------------------------------------
+        public bool TryActOnCell(Vector2Int cell)
+        {
+            var island = _player?.Island;
+            if (island == null) return false;
+
+            var cur = SkyHarvest.Core.GridMath.WorldToGrid(_player!.transform.position, _player.CurrentTier);
+            if (!island.StairsCarved && island.IsStairEdge(cur, cell))
+            {
+                island.CarveStairs(cur);
+                _player.PlayActionAnimation();
+                return true;
+            }
+
+            var target = FindInteractableAt(cell, island);
+            if (target != null)
+            {
+                _player.PlayActionAnimation();
+                target.Interact(_player);
+                return true;
+            }
+
+            return TryTillCell(cell);
+        }
+
+        private IInteractable? FindInteractableAt(Vector2Int cell, IslandData island)
+        {
+            float elev = island.GetCell(cell)?.Elevation ?? 0f;
+            Vector2 centre = SkyHarvest.Core.GridMath.GridToWorld(cell, elev);
+            IInteractable? best = null; IInteractable? bestDebris = null;
+            float closest = 0.6f, closestDebris = 0.6f;
+
+            foreach (var i in InteractableRegistry.All)
+            {
+                if (i is not MonoBehaviour mb || mb == null) continue;
+                float dist = Vector2.Distance(centre, mb.transform.position);
+                if (i is SkyHarvest.Debris.DebrisObject) { if (dist < closestDebris) { closestDebris = dist; bestDebris = i; } }
+                else if (dist < closest) { closest = dist; best = i; }
+            }
+            return bestDebris ?? best;
+        }
+
+        private bool TryTillCell(Vector2Int cellPos)
+        {
+            if (_player?.Island == null) return false;
+            if (!_player.TryGetComponent<ToolSystem>(out var tools)) return false;
+            if (tools.EquippedTool != ToolType.Hoe) return false;
+            if (_player.Island.Tier(cellPos) != _player.CurrentTier) return false;
+
+            var cell = _player.Island.GetCell(cellPos);
+            if (cell == null || cell.IsTilled) return false;
+            if (!TerrainProperties.CanPlaceCrops(cell.Terrain)) return false;
+
+            if (_renderer == null) _renderer = Object.FindObjectOfType<IslandRenderer>();
+            if (FarmingActions.TryTill(cell, _player.Island, _renderer) == null) return false;
+            _player.PlayActionAnimation();
+            return true;
+        }
+
+        // -----------------------------------------------------------------------
         // Tutorial mining — carve the staircase the player is facing, unlocking
         // traversal to the raised tier. One-shot; idempotent via IslandData.
         // -----------------------------------------------------------------------
@@ -102,22 +164,8 @@ namespace SkyHarvest.Player
         // -----------------------------------------------------------------------
         private void TryTillFacingCell()
         {
-            if (_player?.Island == null) return;
-            if (!_player.TryGetComponent<ToolSystem>(out var tools)) return;
-            if (tools.EquippedTool != ToolType.Hoe) return;
-
-            var facingCell = _player.CurrentFacingCell;
-
-            // Block cross-tier tilling: the player must be on the same tier as the target cell.
-            if (_player.Island.Tier(facingCell) != _player.CurrentTier) return;
-
-            var cell = _player.Island.GetCell(facingCell);
-            if (cell == null || cell.IsTilled) return;
-            if (!TerrainProperties.CanPlaceCrops(cell.Terrain)) return;
-
-            if (_renderer == null) _renderer = Object.FindObjectOfType<IslandRenderer>();
-            if (FarmingActions.TryTill(cell, _player.Island, _renderer) != null)
-                _player.PlayActionAnimation();
+            if (_player == null) return;
+            TryTillCell(_player.CurrentFacingCell);
         }
 
         // -----------------------------------------------------------------------

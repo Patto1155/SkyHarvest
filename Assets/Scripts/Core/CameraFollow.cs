@@ -36,6 +36,9 @@ namespace SkyHarvest.Core
                 SmoothSpeed * Time.deltaTime);
         }
 
+        public float PinchSensitivity = 0.01f;   // ortho-size change per pixel of pinch delta
+        private float _lastPinchDistance = -1f;
+
         private void HandleZoom()
         {
             if (_cam == null) return;
@@ -45,6 +48,16 @@ namespace SkyHarvest.Core
             float scroll = Input.mouseScrollDelta.y;
             if (ctrl && scroll != 0f)
                 _targetSize = Mathf.Clamp(_targetSize - scroll * ZoomStep, MinZoom, MaxZoom);
+
+            // Two-finger pinch on touch screens.
+            if (Input.touchCount == 2)
+            {
+                float dist = Vector2.Distance(Input.GetTouch(0).position, Input.GetTouch(1).position);
+                if (_lastPinchDistance > 0f)
+                    _targetSize = Mathf.Clamp(_targetSize + (_lastPinchDistance - dist) * PinchSensitivity, MinZoom, MaxZoom);
+                _lastPinchDistance = dist;
+            }
+            else _lastPinchDistance = -1f;
 
             _cam.orthographicSize = Mathf.Lerp(_cam.orthographicSize, _targetSize,
                 ZoomSmoothSpeed * Time.deltaTime);
